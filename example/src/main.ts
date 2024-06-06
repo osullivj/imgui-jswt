@@ -47,6 +47,48 @@ async function AddFontFromFileTTF(url: string, size_pixels: number, font_cfg: Im
     return ImGui.GetIO().Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
 }
 
+
+async function _h3connect() {
+  const url = "https://localhost:4433/"; // document.getElementById('url').value;
+  try {
+    var transport = new WebTransport(url);
+    console.log("Initiating H3Connection...");
+  } catch (e) {
+    console.log("Failed to create H3Connection object. " + e);
+    return;
+  }
+
+  try {
+    await transport.ready;
+    console.log("H3Connection ready.");
+  } catch (e) {
+    console.log("H3Connection failed. " + e);
+    return;
+  }
+
+  transport.closed
+      .then(() => {
+        console.log("H3Connection closed normally.");
+      })
+      .catch(() => {
+        console.log("H3Connection closed abruptly.");
+      });
+  /*
+  currentTransport = transport;
+  streamNumber = 1;
+  try {
+    currentTransportDatagramWriter = transport.datagrams.writable.getWriter();
+    addToEventLog('Datagram writer ready.');
+  } catch (e) {
+    addToEventLog('Sending datagrams not supported: ' + e, 'error');
+    return;
+  }
+  readDatagrams(transport);
+  acceptUnidirectionalStreams(transport);
+  document.forms.sending.elements.send.disabled = false;
+  document.getElementById('connect').disabled = true; */
+}
+
 async function _init(): Promise<void> {
     const EMSCRIPTEN_VERSION = `${ImGui.bind.__EMSCRIPTEN_major__}.${ImGui.bind.__EMSCRIPTEN_minor__}.${ImGui.bind.__EMSCRIPTEN_tiny__}`;
     console.log("Emscripten Version", EMSCRIPTEN_VERSION);
@@ -101,12 +143,14 @@ async function _init(): Promise<void> {
         ImGui_Impl.Init(null);
     }
 
-    StartUpImage();
-    StartUpVideo();
+    // StartUpImage();
+    // StartUpVideo();
 
     if (typeof(window) !== "undefined") {
         window.requestAnimationFrame(_loop);
     }
+    
+    _h3connect();
 }
 
 // Main loop
@@ -131,8 +175,8 @@ function _loop(time: number): void {
         // static float f = 0.0f;
         // static int counter = 0;
 
-        ImGui.Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
+        // ImGui.Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+        ImGui.Begin("HFGUI");
         ImGui.Text("This is some useful text.");               // Display some text (you can use a format strings too)
         ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state
         ImGui.Checkbox("Another Window", (value = show_another_window) => show_another_window = value);
@@ -161,6 +205,7 @@ function _loop(time: number): void {
         ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
         ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
         // ImGui.Text(`Topmost releasable block (keepcost):   ${mi.keepcost}`);
+        /*
         if (ImGui.ImageButton(image_gl_texture, new ImGui.Vec2(48, 48))) {
             // show_demo_window = !show_demo_window;
             image_url = image_urls[(image_urls.indexOf(image_url) + 1) % image_urls.length];
@@ -173,6 +218,7 @@ function _loop(time: number): void {
             ImGui.Text(image_url);
             ImGui.EndTooltip();
         }
+        
         if (ImGui.Button("Sandbox Window")) { show_sandbox_window = true; }
         if (show_sandbox_window)
             ShowSandboxWindow("Sandbox Window", (value = show_sandbox_window) => show_sandbox_window = value);
@@ -184,7 +230,8 @@ function _loop(time: number): void {
         if (ImGui.Button("Movie Window")) { show_movie_window = true; }
         if (show_movie_window)
             ShowMovieWindow("Movie Window", (value = show_movie_window) => show_movie_window = value);
-
+        */
+        
         if (font) {
             ImGui.PushFont(font);
             ImGui.Text(`${font.GetDebugName()}`);
@@ -198,13 +245,13 @@ function _loop(time: number): void {
     }
 
     // 3. Show another simple window.
-    if (show_another_window) {
+    /* if (show_another_window) {
         ImGui.Begin("Another Window", (value = show_another_window) => show_another_window = value, ImGui.WindowFlags.AlwaysAutoResize);
         ImGui.Text("Hello from another window!");
         if (ImGui.Button("Close Me"))
             show_another_window = false;
         ImGui.End();
-    }
+    } */
 
     ImGui.EndFrame();
 
@@ -225,7 +272,7 @@ function _loop(time: number): void {
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
 
-    UpdateVideo();
+    // UpdateVideo();
 
     ImGui_Impl.RenderDrawData(ImGui.GetDrawData());
 
@@ -247,8 +294,8 @@ async function _done(): Promise<void> {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
 
-    CleanUpImage();
-    CleanUpVideo();
+    // CleanUpImage();
+    // CleanUpVideo();
 
     // Cleanup
     ImGui_Impl.Shutdown();
@@ -276,6 +323,7 @@ let source: string = [
     "",
 ].join("\n");
 
+/*
 function ShowSandboxWindow(title: string, p_open: ImGui.Access<boolean> | null = null): void {
     ImGui.SetNextWindowSize(new ImGui.Vec2(320, 240), ImGui.Cond.FirstUseEver);
     ImGui.Begin(title, p_open);
@@ -517,3 +565,5 @@ function ShowMovieWindow(title: string, p_open: ImGui.Access<boolean> | null = n
     }
     ImGui.End();
 }
+
+*/
