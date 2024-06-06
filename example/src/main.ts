@@ -175,23 +175,13 @@ function _loop(time: number): void {
         // static float f = 0.0f;
         // static int counter = 0;
 
-        // ImGui.Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
         ImGui.Begin("HFGUI");
-        ImGui.Text("This is some useful text.");               // Display some text (you can use a format strings too)
-        ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state
-        ImGui.Checkbox("Another Window", (value = show_another_window) => show_another_window = value);
-
-        ImGui.SliderFloat("float", (value = f) => f = value, 0.0, 1.0);            // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui.ColorEdit3("clear color", clear_color); // Edit 3 floats representing a color
-
-        if (ImGui.Button("Button"))                            // Buttons return true when clicked (NB: most widgets return true when edited/activated)
-            counter++;
-        ImGui.SameLine();
-        ImGui.Text(`counter = ${counter}`);
 
         ImGui.Text(`Application average ${(1000.0 / ImGui.GetIO().Framerate).toFixed(3)} ms/frame (${ImGui.GetIO().Framerate.toFixed(1)} FPS)`);
 
         ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
+        ImGui.SameLine();
+        ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state        
         if (memory_editor.Open)
             memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
         const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
