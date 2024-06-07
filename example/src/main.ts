@@ -194,33 +194,6 @@ function _loop(time: number): void {
         // ImGui.Text(`Free bytes held in fastbins (fsmblks): ${mi.fsmblks}`);
         ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
         ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
-        // ImGui.Text(`Topmost releasable block (keepcost):   ${mi.keepcost}`);
-        /*
-        if (ImGui.ImageButton(image_gl_texture, new ImGui.Vec2(48, 48))) {
-            // show_demo_window = !show_demo_window;
-            image_url = image_urls[(image_urls.indexOf(image_url) + 1) % image_urls.length];
-            if (image_element) {
-                image_element.src = image_url;
-            }
-        }
-        if (ImGui.IsItemHovered()) {
-            ImGui.BeginTooltip();
-            ImGui.Text(image_url);
-            ImGui.EndTooltip();
-        }
-        
-        if (ImGui.Button("Sandbox Window")) { show_sandbox_window = true; }
-        if (show_sandbox_window)
-            ShowSandboxWindow("Sandbox Window", (value = show_sandbox_window) => show_sandbox_window = value);
-        ImGui.SameLine();
-        if (ImGui.Button("Gamepad Window")) { show_gamepad_window = true; }
-        if (show_gamepad_window)
-            ShowGamepadWindow("Gamepad Window", (value = show_gamepad_window) => show_gamepad_window = value);
-        ImGui.SameLine();
-        if (ImGui.Button("Movie Window")) { show_movie_window = true; }
-        if (show_movie_window)
-            ShowMovieWindow("Movie Window", (value = show_movie_window) => show_movie_window = value);
-        */
         
         if (font) {
             ImGui.PushFont(font);
@@ -234,14 +207,6 @@ function _loop(time: number): void {
         ImGui.End();
     }
 
-    // 3. Show another simple window.
-    /* if (show_another_window) {
-        ImGui.Begin("Another Window", (value = show_another_window) => show_another_window = value, ImGui.WindowFlags.AlwaysAutoResize);
-        ImGui.Text("Hello from another window!");
-        if (ImGui.Button("Close Me"))
-            show_another_window = false;
-        ImGui.End();
-    } */
 
     ImGui.EndFrame();
 
@@ -257,12 +222,9 @@ function _loop(time: number): void {
 
     const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
     if (ctx) {
-        // ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         ctx.fillStyle = `rgba(${clear_color.x * 0xff}, ${clear_color.y * 0xff}, ${clear_color.z * 0xff}, ${clear_color.w})`;
         ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
-
-    // UpdateVideo();
 
     ImGui_Impl.RenderDrawData(ImGui.GetDrawData());
 
@@ -284,9 +246,6 @@ async function _done(): Promise<void> {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
 
-    // CleanUpImage();
-    // CleanUpVideo();
-
     // Cleanup
     ImGui_Impl.Shutdown();
     ImGui.DestroyContext();
@@ -304,256 +263,3 @@ function ShowHelpMarker(desc: string): void {
         ImGui.EndTooltip();
     }
 }
-
-let source: string = [
-    "ImGui.Text(\"Hello, world!\");",
-    "ImGui.SliderFloat(\"float\",",
-    "\t(value = f) => f = value,",
-    "\t0.0, 1.0);",
-    "",
-].join("\n");
-
-/*
-function ShowSandboxWindow(title: string, p_open: ImGui.Access<boolean> | null = null): void {
-    ImGui.SetNextWindowSize(new ImGui.Vec2(320, 240), ImGui.Cond.FirstUseEver);
-    ImGui.Begin(title, p_open);
-    ImGui.Text("Source");
-    ImGui.SameLine(); ShowHelpMarker("Contents evaluated and appended to the window.");
-    ImGui.PushItemWidth(-1);
-    ImGui.InputTextMultiline("##source", (_ = source) => (source = _), 1024, ImGui.Vec2.ZERO, ImGui.InputTextFlags.AllowTabInput);
-    ImGui.PopItemWidth();
-    try {
-        eval(source);
-    } catch (e: any) {
-        ImGui.TextColored(new ImGui.Vec4(1.0, 0.0, 0.0, 1.0), "error: ");
-        ImGui.SameLine();
-        ImGui.Text(e.message);
-    }
-    ImGui.End();
-}
-
-function ShowGamepadWindow(title: string, p_open: ImGui.Access<boolean> | null = null): void {
-    ImGui.Begin(title, p_open, ImGui.WindowFlags.AlwaysAutoResize);
-    const gamepads: (Gamepad | null)[] = (typeof(navigator) !== "undefined" && typeof(navigator.getGamepads) === "function") ? navigator.getGamepads() : [];
-    if (gamepads.length > 0) {
-        for (let i = 0; i < gamepads.length; ++i) {
-            const gamepad: Gamepad | null = gamepads[i];
-            ImGui.Text(`gamepad ${i} ${gamepad && gamepad.id}`);
-            if (!gamepad) { continue; }
-            ImGui.Text(`       `);
-            for (let button = 0; button < gamepad.buttons.length; ++button) {
-                ImGui.SameLine(); ImGui.Text(`${button.toString(16)}`);
-            }
-            ImGui.Text(`buttons`);
-            for (let button = 0; button < gamepad.buttons.length; ++button) {
-                ImGui.SameLine(); ImGui.Text(`${gamepad.buttons[button].value}`);
-            }
-            ImGui.Text(`axes`);
-            for (let axis = 0; axis < gamepad.axes.length; ++axis) {
-                ImGui.Text(`${axis}: ${gamepad.axes[axis].toFixed(2)}`);
-            }
-        }
-    } else {
-        ImGui.Text("connect a gamepad");
-    }
-    ImGui.End();
-}
-
-const image_urls: string[] = [
-    "https://threejs.org/examples/textures/crate.gif",
-    "https://threejs.org/examples/textures/sprite.png",
-    "https://threejs.org/examples/textures/uv_grid_opengl.jpg",
-];
-let image_url: string = image_urls[0];
-let image_element: HTMLImageElement | null = null;
-let image_gl_texture: WebGLTexture | null = null;
-
-function StartUpImage(): void {
-    if (typeof document !== "undefined") {
-        image_element = document.createElement("img");
-        image_element.crossOrigin = "anonymous";
-        image_element.src = image_url;
-    }
-    
-    const gl: WebGLRenderingContext | null = ImGui_Impl.gl;
-    if (gl) {
-        const width: number = 256;
-        const height: number = 256;
-        const pixels: Uint8Array = new Uint8Array(4 * width * height);
-        image_gl_texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, image_gl_texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-
-        if (image_element) {
-            image_element.addEventListener("load", (event: Event) => {
-                if (image_element) {
-                    gl.bindTexture(gl.TEXTURE_2D, image_gl_texture);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image_element);
-                }
-            });
-        }
-    }
-
-    const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
-    if (ctx) {
-        image_gl_texture = image_element; // HACK
-    }
-}
-
-function CleanUpImage(): void {
-    const gl: WebGLRenderingContext | null = ImGui_Impl.gl;
-    if (gl) {
-        gl.deleteTexture(image_gl_texture); image_gl_texture = null;
-    }
-
-    const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
-    if (ctx) {
-        image_gl_texture = null;
-    }
-
-    image_element = null;
-}
-
-const video_urls: string[] = [
-    "https://threejs.org/examples/textures/sintel.ogv",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4",
-];
-let video_url: string = video_urls[0];
-let video_element: HTMLVideoElement | null = null;
-let video_gl_texture: WebGLTexture | null = null;
-let video_w: number = 640;
-let video_h: number = 360;
-let video_time_active: boolean = false;
-let video_time: number = 0;
-let video_duration: number = 0;
-
-function StartUpVideo(): void {
-    if (typeof document !== "undefined") {
-        video_element = document.createElement("video");
-        video_element.crossOrigin = "anonymous";
-        video_element.preload = "auto";
-        video_element.src = video_url;
-        video_element.load();
-    }
-
-    const gl: WebGLRenderingContext | null = ImGui_Impl.gl;
-    if (gl) {
-        const width: number = 256;
-        const height: number = 256;
-        const pixels: Uint8Array = new Uint8Array(4 * width * height);
-        video_gl_texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, video_gl_texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    }
-
-    const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
-    if (ctx) {
-        video_gl_texture = video_element; // HACK
-    }
-}
-
-function CleanUpVideo(): void {
-    const gl: WebGLRenderingContext | null = ImGui_Impl.gl;
-    if (gl) {
-        gl.deleteTexture(video_gl_texture); video_gl_texture = null;
-    }
-
-    const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
-    if (ctx) {
-        video_gl_texture = null;
-    }
-
-    video_element = null;
-}
-
-function UpdateVideo(): void {
-    const gl: WebGLRenderingContext | null = ImGui_Impl.gl;
-    if (gl && video_element && video_element.readyState >= video_element.HAVE_CURRENT_DATA) {
-        gl.bindTexture(gl.TEXTURE_2D, video_gl_texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video_element);
-    }
-}
-
-function ShowMovieWindow(title: string, p_open: ImGui.Access<boolean> | null = null): void {
-    ImGui.Begin(title, p_open, ImGui.WindowFlags.AlwaysAutoResize);
-    if (video_element !== null) {
-        if (p_open && !p_open()) {
-            video_element.pause();
-        }
-        const w: number = video_element.videoWidth;
-        const h: number = video_element.videoHeight;
-        if (w > 0) { video_w = w; }
-        if (h > 0) { video_h = h; }
-
-        ImGui.BeginGroup();
-        if (ImGui.BeginCombo("##urls", null, ImGui.ComboFlags.NoPreview | ImGui.ComboFlags.PopupAlignLeft)) {
-            for (let n = 0; n < ImGui.ARRAYSIZE(video_urls); n++) {
-                if (ImGui.Selectable(video_urls[n])) {
-                    video_url = video_urls[n];
-                    console.log(video_url);
-                    video_element.src = video_url;
-                    video_element.autoplay = true;
-                }
-            }
-            ImGui.EndCombo();
-        }
-        ImGui.SameLine();
-        ImGui.PushItemWidth(video_w - 20);
-        if (ImGui.InputText("##url", (value = video_url) => video_url = value)) {
-            console.log(video_url);
-            video_element.src = video_url;
-        }
-        ImGui.PopItemWidth();
-        ImGui.EndGroup();
-
-        if (ImGui.ImageButton(video_gl_texture, new ImGui.Vec2(video_w, video_h))) {
-            if (video_element.readyState >= video_element.HAVE_CURRENT_DATA) {
-                video_element.paused ? video_element.play() : video_element.pause();
-            }
-        }
-
-        ImGui.BeginGroup();
-        if (ImGui.Button(video_element.paused ? "Play" : "Stop")) {
-            if (video_element.readyState >= video_element.HAVE_CURRENT_DATA) {
-                video_element.paused ? video_element.play() : video_element.pause();
-            }
-        }
-        ImGui.SameLine();
-        if (!video_time_active) {
-            video_time = video_element.currentTime;
-            video_duration = video_element.duration || 0;
-        }
-        ImGui.SliderFloat("##time", (value = video_time) => video_time = value, 0, video_duration);
-        const video_time_was_active: boolean = video_time_active;
-        video_time_active = ImGui.IsItemActive();
-        if (!video_time_active && video_time_was_active) {
-            video_element.currentTime = video_time;
-        }
-        ImGui.EndGroup();
-    } else {
-        ImGui.Text("No Video Element");
-    }
-    ImGui.End();
-}
-
-*/
