@@ -6,7 +6,7 @@ import { MemoryEditor } from "./imgui_memory_editor.js";
 let font: ImGui.Font | null = null;
 
 // Our state
-let show_demo_window: boolean = true;
+let show_demo_window: boolean = false;
 let show_another_window: boolean = false;
 const clear_color: ImGui.Vec4 = new ImGui.Vec4(0.45, 0.55, 0.60, 1.00);
 
@@ -47,11 +47,73 @@ async function AddFontFromFileTTF(url: string, size_pixels: number, font_cfg: Im
     return ImGui.GetIO().Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
 }
 
+class H3Context {
+    web_trans: any;     // no definitive WebTransport IDL!
+    dgram_reader: any;
+    dgram_writer: any;    
+    start_ts: Date;
+    end_ts: Date;
+    inst_map: Map<string, number>;
+    
+    constructor() {
+        this.start_ts = new Date();
+        this.end_ts = new Date();
+        this.inst_map = new Map<string,number>();
+    }
+}
+
+let _h3ctx: H3Context = new H3Context();
+
+function _h3updateContext(data: any) {
+    console.log('_h3updateContext: '+ data);
+}
+
+// Reads datagrams from web_trans into the event log until EOF is reached.
+async function _h3readDatagrams() {
+    /*
+  try {
+    var reader = _h3ctx.web_trans.datagrams.readable.getReader();
+    console.log('Datagram reader ready.');
+  } catch (e) {
+    console.log('Receiving datagrams not supported: ' + e, 'error');
+    return;
+  } */
+  var decoder = new TextDecoder('utf-8');
+  try {
+    while (true) {
+      const { value, done } = await _h3ctx.dgram_reader.read();
+      if (done) {
+        console.log('Done reading datagrams!');
+        return;
+      }
+      var data = decoder.decode(value);
+      console.log('Datagram received: ' + data);
+      _h3updateContext(data);
+    }
+  } catch (e) {
+    console.log('Error while reading datagrams: ' + e, 'error');
+  }
+}
+
+async function h3readDatagrams(value: any, done: boolean) {
+  if (done) {
+    console.log('Done reading datagrams!');
+    return;
+  }    
+  var decoder = new TextDecoder('utf-8');
+  try {
+      var data = decoder.decode(value);
+      console.log('Datagram received: ' + data);
+      _h3updateContext(data);
+  } catch (e) {
+    console.log('Error while reading datagrams: ' + e, 'error');
+  }
+}
 
 async function _h3connect() {
   const url = "https://localhost:4433/"; // document.getElementById('url').value;
   try {
-    var transport = new WebTransport(url);
+    _h3ctx.web_trans = new WebTransport(url);
     console.log("Initiating H3Connection...");
   } catch (e) {
     console.log("Failed to create H3Connection object. " + e);
@@ -59,34 +121,39 @@ async function _h3connect() {
   }
 
   try {
-    await transport.ready;
+    await _h3ctx.web_trans.ready;
     console.log("H3Connection ready.");
   } catch (e) {
     console.log("H3Connection failed. " + e);
     return;
   }
 
-  transport.closed
+  _h3ctx.web_trans.closed
       .then(() => {
         console.log("H3Connection closed normally.");
       })
       .catch(() => {
         console.log("H3Connection closed abruptly.");
       });
-  /*
-  currentTransport = transport;
-  streamNumber = 1;
+       
+  var streamNumber = 1;
   try {
-    currentTransportDatagramWriter = transport.datagrams.writable.getWriter();
-    addToEventLog('Datagram writer ready.');
+    _h3ctx.dgram_writer = _h3ctx.web_trans.datagrams.writable.getWriter();
+    console.log('Datagram writer ready.');
   } catch (e) {
-    addToEventLog('Sending datagrams not supported: ' + e, 'error');
+    console.log('Sending datagrams not supported: ' + e, 'error');
     return;
   }
-  readDatagrams(transport);
-  acceptUnidirectionalStreams(transport);
-  document.forms.sending.elements.send.disabled = false;
-  document.getElementById('connect').disabled = true; */
+  
+  try {
+    _h3ctx.dgram_reader = _h3ctx.web_trans.datagrams.readable.getReader();
+    // _h3ctx.dgram_reader.read().then(_h3readDatagrams);
+    console.log('Datagram reader ready.');    
+  } catch (e) {
+    console.log("Datagram reader init failed: " + e);
+    return;
+  }
+  
 }
 
 async function _init(): Promise<void> {
@@ -142,10 +209,7 @@ async function _init(): Promise<void> {
     } else {
         ImGui_Impl.Init(null);
     }
-
-    // StartUpImage();
-    // StartUpVideo();
-
+    
     if (typeof(window) !== "undefined") {
         window.requestAnimationFrame(_loop);
     }
@@ -160,7 +224,12 @@ function _loop(time: number): void {
     // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
     // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
     // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-
+    
+    // Handle any datagrams that have arrived since the last render...
+    // yes, this is an async func, and we're invoking from a sync func.
+    // In this case that's OK, as the the func has no return val to await
+    _h3readDatagrams();
+    
     // Start the Dear ImGui frame
     ImGui_Impl.NewFrame(time);
     ImGui.NewFrame();
@@ -174,11 +243,16 @@ function _loop(time: number): void {
     {
         // static float f = 0.0f;
         // static int counter = 0;
-
         ImGui.Begin("HFGUI");
+        
+        // inst select drop down
+        
+        // start end datetime grid
+        
+        // depth grid
 
+        // main GUI footer
         ImGui.Text(`Application average ${(1000.0 / ImGui.GetIO().Framerate).toFixed(3)} ms/frame (${ImGui.GetIO().Framerate.toFixed(1)} FPS)`);
-
         ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
         ImGui.SameLine();
         ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state        
