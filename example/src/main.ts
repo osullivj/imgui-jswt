@@ -54,30 +54,33 @@ class H3Context {
     start_ts: Date;
     end_ts: Date;
     inst_map: Map<string, number>;
+    current_inst: number;
     
     constructor() {
         this.start_ts = new Date();
         this.end_ts = new Date();
         this.inst_map = new Map<string,number>();
+        this.current_inst = 0;
     }
 }
 
 let _h3ctx: H3Context = new H3Context();
 
 function _h3updateContext(data: any) {
-    console.log('_h3updateContext: '+ data);
+    console.log('_h3updateContext: '+ data.h3type);
+    switch (data.h3type) {
+        case "ts_range":
+            _h3ctx.start_ts = data.start_ts;
+            _h3ctx.end_ts = data.end_ts;
+            break;
+        case "inst_static":
+            _h3ctx.inst_map = new Map<string,number>(Object.entries(data.instruments));
+            break;
+    }
 }
 
 // Reads datagrams from web_trans into the event log until EOF is reached.
 async function _h3readDatagrams() {
-    /*
-  try {
-    var reader = _h3ctx.web_trans.datagrams.readable.getReader();
-    console.log('Datagram reader ready.');
-  } catch (e) {
-    console.log('Receiving datagrams not supported: ' + e, 'error');
-    return;
-  } */
   var decoder = new TextDecoder('utf-8');
   try {
     while (true) {
@@ -88,27 +91,13 @@ async function _h3readDatagrams() {
       }
       var data = decoder.decode(value);
       console.log('Datagram received: ' + data);
-      _h3updateContext(data);
+      _h3updateContext(JSON.parse(data));
     }
   } catch (e) {
     console.log('Error while reading datagrams: ' + e, 'error');
   }
 }
 
-async function h3readDatagrams(value: any, done: boolean) {
-  if (done) {
-    console.log('Done reading datagrams!');
-    return;
-  }    
-  var decoder = new TextDecoder('utf-8');
-  try {
-      var data = decoder.decode(value);
-      console.log('Datagram received: ' + data);
-      _h3updateContext(data);
-  } catch (e) {
-    console.log('Error while reading datagrams: ' + e, 'error');
-  }
-}
 
 async function _h3connect() {
   const url = "https://localhost:4433/"; // document.getElementById('url').value;
@@ -147,7 +136,6 @@ async function _h3connect() {
   
   try {
     _h3ctx.dgram_reader = _h3ctx.web_trans.datagrams.readable.getReader();
-    // _h3ctx.dgram_reader.read().then(_h3readDatagrams);
     console.log('Datagram reader ready.');    
   } catch (e) {
     console.log("Datagram reader init failed: " + e);
@@ -246,8 +234,29 @@ function _loop(time: number): void {
         ImGui.Begin("HFGUI");
         
         // inst select drop down
-        
+        if (_h3ctx.inst_map.size > 0) {
+            // Using the generic BeginCombo() API, you have full control over how to display the combo contents.
+            // (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
+            // stored in the object itself, etc.)
+            const insts: string[] = Array.from(_h3ctx.inst_map.keys());
+            const combo_preview_value: string = insts[_h3ctx.current_inst];
+            // TODO: last param is flags for combo styling
+            if (ImGui.BeginCombo("Instrument", combo_preview_value, 0)) {
+                for (let n = 0; n < ImGui.ARRAYSIZE(insts); n++) {
+                    const is_selected: boolean = (_h3ctx.current_inst === n);
+                    if (ImGui.Selectable(insts[n], is_selected))
+                        _h3ctx.current_inst = n;
+                    // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                    if (is_selected)
+                        ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
+        }
         // start end datetime grid
+        // TODO use InputScalar for YMD HMS
+        ImGui.InputScalar("Y",      /*ImGui.DataType.U8,    */ u8_v.value,  inputs_step.value ? u8_one  : null, null, "%u");
+
         
         // depth grid
 
