@@ -48,54 +48,88 @@ async function AddFontFromFileTTF(url: string, size_pixels: number, font_cfg: Im
 }
 
 class H3Context {
+    // WebTransport state
     web_trans: any;     // no definitive WebTransport IDL!
     dgram_reader: any;
-    dgram_writer: any;    
+    dgram_writer: any;
+    decoder: any;
+    encoder: any;
+    // ts_range and inst_map from the back end
+    earliest_ts: Date;
+    latest_ts: Date;
+    inst_map: Map<string, number>;
+    // index into inst_map.keys()
+    current_inst: number;
     start_ts: Date;
     end_ts: Date;
-    inst_map: Map<string, number>;
-    current_inst: number;
+    // consts
+    data_type_u8: Uint8Array;
+    earliest_year: number;
+    update_interval: number;
     
     constructor() {
+        this.data_type_u8 = new Uint8Array([255]);
+        this.decoder = new TextDecoder('utf-8');
+        this.encoder = new TextEncoder();
+        this.earliest_year = 2000;
+        this.update_interval = 50;        
+        this.earliest_ts = new Date();
+        this.latest_ts = new Date();
         this.start_ts = new Date();
-        this.end_ts = new Date();
+        this.end_ts = new Date();        
         this.inst_map = new Map<string,number>();
         this.current_inst = 0;
+
+    }
+    
+    _set_ts_range(data: any) {
+        this.earliest_ts = new Date(Date.parse(data.earliest_ts));
+        this.latest_ts = new Date(Date.parse(data.latest_ts));
+        this.start_ts = new Date(this.earliest_ts);
+        this.end_ts = new Date(this.earliest_ts);
+        this.end_ts.setHours(this.end_ts.getHours() + 1);
+        this.earliest_year = this.earliest_ts.getFullYear();
+    }
+    
+    _set_inst_map(data: any) {
+        this.inst_map = new Map<string,number>(Object.entries(data.instruments));
+    }
+    
+    update(value: any) {
+        var data = this.decoder.decode(value);        
+        console.log('_h3updateContext: ' + JSON.stringify(data));         
+        switch (data.h3type) {
+            case "ts_range":
+                this._set_ts_range(data);
+                break;
+            case "inst_static":
+                this._set_inst_map(data);
+                break;
+        }
     }
 }
 
 let _h3ctx: H3Context = new H3Context();
 
-function _h3updateContext(data: any) {
-    console.log('_h3updateContext: '+ data.h3type);
-    switch (data.h3type) {
-        case "ts_range":
-            _h3ctx.start_ts = data.start_ts;
-            _h3ctx.end_ts = data.end_ts;
-            break;
-        case "inst_static":
-            _h3ctx.inst_map = new Map<string,number>(Object.entries(data.instruments));
-            break;
-    }
-}
 
 // Reads datagrams from web_trans into the event log until EOF is reached.
 async function _h3readDatagrams() {
-  var decoder = new TextDecoder('utf-8');
+  console.log("ENTR _h3readDatagrams");
   try {
     while (true) {
       const { value, done } = await _h3ctx.dgram_reader.read();
       if (done) {
-        console.log('Done reading datagrams!');
+        console.log('DONE _h3readDatagrams');
+        window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
         return;
       }
-      var data = decoder.decode(value);
-      console.log('Datagram received: ' + data);
-      _h3updateContext(JSON.parse(data));
+      _h3ctx.update(value);
     }
   } catch (e) {
-    console.log('Error while reading datagrams: ' + e, 'error');
+    console.log('ERR _h3readDatagrams: ' + JSON.stringify(e));
   }
+  console.log("EXIT _h3readDatagrams");
+  window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
 }
 
 
@@ -198,14 +232,17 @@ async function _init(): Promise<void> {
         ImGui_Impl.Init(null);
     }
     
+    await _h3connect();
+    
+    window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
+    
     if (typeof(window) !== "undefined") {
         window.requestAnimationFrame(_loop);
     }
-    
-    _h3connect();
 }
 
 // Main loop
+// async function _loop(time: number): Promise<void> {
 function _loop(time: number): void {
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -213,10 +250,10 @@ function _loop(time: number): void {
     // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
     // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
     
-    // Handle any datagrams that have arrived since the last render...
-    // yes, this is an async func, and we're invoking from a sync func.
-    // In this case that's OK, as the the func has no return val to await
-    _h3readDatagrams();
+    // Handle any datagrams that have arrived since the last render.
+    // Yes, this is an async func, and we're invoking from a sync func,
+    // so we use .then() for a null op on completion.
+    // _h3readDatagrams().then(()=>{});
     
     // Start the Dear ImGui frame
     ImGui_Impl.NewFrame(time);
@@ -255,7 +292,7 @@ function _loop(time: number): void {
         }
         // start end datetime grid
         // TODO use InputScalar for YMD HMS
-        ImGui.InputScalar("Y",      /*ImGui.DataType.U8,    */ u8_v.value,  inputs_step.value ? u8_one  : null, null, "%u");
+        ImGui.InputScalar("Y", _h3ctx.data_type_u8, _h3ctx.start_ts.getFullYear(), _h3ctx.earliest_ts.getFullYear(), "%u");
 
         
         // depth grid
