@@ -47,6 +47,18 @@ async function AddFontFromFileTTF(url: string, size_pixels: number, font_cfg: Im
     return ImGui.GetIO().Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
 }
 
+abstract class H3Message {
+    constructor(readonly h3type:string) {}
+}
+
+class H3TSRangeRequest extends H3Message {
+    constructor() {super("ts_range_request");}
+}
+
+class H3InstStaticRequest extends H3Message {
+    constructor() {super("inst_static_request");}
+}
+
 class H3Context {
     // WebTransport state
     web_trans: any;     // no definitive WebTransport IDL!
@@ -55,9 +67,9 @@ class H3Context {
     decoder: any;
     encoder: any;
     // ts_range and inst_map from the back end
-    earliest_ts: Date;
+    earliest_ts: Date | null;
     latest_ts: Date;
-    inst_map: Map<string, number>;
+    inst_map: Map<string, number> | null;
     // index into inst_map.keys()
     current_inst: number;
     start_ts: Date;
@@ -66,18 +78,20 @@ class H3Context {
     data_type_u8: Uint8Array;
     earliest_year: number;
     update_interval: number;
+    init_interval: number;    
     
     constructor() {
         this.data_type_u8 = new Uint8Array([255]);
         this.decoder = new TextDecoder('utf-8');
         this.encoder = new TextEncoder();
         this.earliest_year = 2000;
-        this.update_interval = 50;        
-        this.earliest_ts = new Date();
+        this.update_interval = 50;
+        this.init_interval = 1000;
+        this.earliest_ts = null; // new Date();
         this.latest_ts = new Date();
         this.start_ts = new Date();
         this.end_ts = new Date();        
-        this.inst_map = new Map<string,number>();
+        this.inst_map = null; // new Map<string,number>();
         this.current_inst = 0;
 
     }
@@ -96,8 +110,9 @@ class H3Context {
     }
     
     update(value: any) {
-        var data = this.decoder.decode(value);        
-        console.log('_h3updateContext: ' + JSON.stringify(data));         
+        let data_s:string = this.decoder.decode(value);
+        console.log('H3Context.update: ' + data_s);
+        let data:any = JSON.parse(data_s);
         switch (data.h3type) {
             case "ts_range":
                 this._set_ts_range(data);
@@ -107,76 +122,103 @@ class H3Context {
                 break;
         }
     }
+    
+    async _sendDatagram(msg:H3Message): Promise<number> {
+        let msg_json = JSON.stringify(msg);
+        console.log('H3Context._sendDatagram: ' + msg_json);
+        let data = this.encoder.encode(msg_json);
+        await this.dgram_writer.write(data);
+        return 0;
+    }
+    
+    async _readDatagrams(): Promise<number> {
+        console.log("ENTR _readDatagrams");
+        try {
+            while (true) {
+                const { value, done } = await _h3ctx.dgram_reader.read();
+                if (done) {
+                    console.log('DONE _readDatagrams');
+                    return 0;
+                }
+                this.update(value);
+            }
+        } catch (e) {
+            console.log('ERR _readDatagrams: ' + JSON.stringify(e));
+            return 1;
+        }
+        console.log("EXIT _readDatagrams");
+        return 0;
+    }
+    
+    async connect(url: string): Promise<number> {
+        try {
+            this.web_trans = new WebTransport(url);
+            console.log("Initiating H3Connection...");
+        } catch (e) {
+            console.log("Failed to create H3Connection object. " + e);
+            return 1;
+        }
+
+        try {
+            await this.web_trans.ready;
+            console.log("H3Connection ready.");
+        } catch (e) {
+            console.log("H3Connection failed. " + e);
+            return 2;
+        }
+
+        this.web_trans.closed.then(() => {
+            console.log("H3Connection closed normally.");
+        }).catch(() => {
+            console.log("H3Connection closed abruptly.");
+        });
+       
+        try {
+            this.dgram_writer = this.web_trans.datagrams.writable.getWriter();
+            console.log('Datagram writer ready.');
+        } catch (e) {
+            console.log('Sending datagrams not supported: ' + e, 'error');
+            return 3;
+        }
+        try {
+            this.dgram_reader = this.web_trans.datagrams.readable.getReader();
+            console.log('Datagram reader ready.');    
+        } catch (e) {
+            console.log("Datagram reader init failed: " + e);
+            return 4;
+        }
+        // schedule call to send static data requests to back end
+        // NB use closure to invoke otherwise this===globalThis
+        window.setTimeout(_h3checkInit, this.init_interval);
+        return 0;
+    }
 }
 
 let _h3ctx: H3Context = new H3Context();
-
+let _h3TSRangeRequest = new H3TSRangeRequest();
+let _h3InstStaticRequest = new H3InstStaticRequest();
 
 // Reads datagrams from web_trans into the event log until EOF is reached.
 async function _h3readDatagrams() {
-  console.log("ENTR _h3readDatagrams");
-  try {
-    while (true) {
-      const { value, done } = await _h3ctx.dgram_reader.read();
-      if (done) {
-        console.log('DONE _h3readDatagrams');
-        window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
+    let err = await _h3ctx._readDatagrams();
+    window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
+}
+
+async function _h3checkInit() {
+    if (_h3ctx.earliest_ts !== null && _h3ctx.inst_map !== null) {
+        // init is complete...
         return;
-      }
-      _h3ctx.update(value);
     }
-  } catch (e) {
-    console.log('ERR _h3readDatagrams: ' + JSON.stringify(e));
-  }
-  console.log("EXIT _h3readDatagrams");
-  window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
+    // init is not complete, so schedule another callback to check
+    window.setTimeout(_h3checkInit, _h3ctx.init_interval);    
+    if (_h3ctx.earliest_ts === null) {
+        await _h3ctx._sendDatagram(_h3TSRangeRequest);
+    }
+    if (_h3ctx.inst_map === null) {
+        await _h3ctx._sendDatagram(_h3InstStaticRequest);
+    }
 }
 
-
-async function _h3connect() {
-  const url = "https://localhost:4433/"; // document.getElementById('url').value;
-  try {
-    _h3ctx.web_trans = new WebTransport(url);
-    console.log("Initiating H3Connection...");
-  } catch (e) {
-    console.log("Failed to create H3Connection object. " + e);
-    return;
-  }
-
-  try {
-    await _h3ctx.web_trans.ready;
-    console.log("H3Connection ready.");
-  } catch (e) {
-    console.log("H3Connection failed. " + e);
-    return;
-  }
-
-  _h3ctx.web_trans.closed
-      .then(() => {
-        console.log("H3Connection closed normally.");
-      })
-      .catch(() => {
-        console.log("H3Connection closed abruptly.");
-      });
-       
-  var streamNumber = 1;
-  try {
-    _h3ctx.dgram_writer = _h3ctx.web_trans.datagrams.writable.getWriter();
-    console.log('Datagram writer ready.');
-  } catch (e) {
-    console.log('Sending datagrams not supported: ' + e, 'error');
-    return;
-  }
-  
-  try {
-    _h3ctx.dgram_reader = _h3ctx.web_trans.datagrams.readable.getReader();
-    console.log('Datagram reader ready.');    
-  } catch (e) {
-    console.log("Datagram reader init failed: " + e);
-    return;
-  }
-  
-}
 
 async function _init(): Promise<void> {
     const EMSCRIPTEN_VERSION = `${ImGui.bind.__EMSCRIPTEN_major__}.${ImGui.bind.__EMSCRIPTEN_minor__}.${ImGui.bind.__EMSCRIPTEN_tiny__}`;
@@ -232,7 +274,8 @@ async function _init(): Promise<void> {
         ImGui_Impl.Init(null);
     }
     
-    await _h3connect();
+    // await _h3connect();
+    await _h3ctx.connect("https://localhost:4433");
     
     window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
     
@@ -271,7 +314,7 @@ function _loop(time: number): void {
         ImGui.Begin("HFGUI");
         
         // inst select drop down
-        if (_h3ctx.inst_map.size > 0) {
+        if (_h3ctx.inst_map !== null) { // _h3ctx.inst_map.size > 0) {
             // Using the generic BeginCombo() API, you have full control over how to display the combo contents.
             // (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
             // stored in the object itself, etc.)
@@ -292,8 +335,9 @@ function _loop(time: number): void {
         }
         // start end datetime grid
         // TODO use InputScalar for YMD HMS
-        ImGui.InputScalar("Y", _h3ctx.data_type_u8, _h3ctx.start_ts.getFullYear(), _h3ctx.earliest_ts.getFullYear(), "%u");
-
+        if (_h3ctx.earliest_ts !== null) {
+            ImGui.InputScalar("Y", _h3ctx.data_type_u8, _h3ctx.start_ts.getFullYear(), _h3ctx.earliest_ts.getFullYear(), "%u");
+        }
         
         // depth grid
 
