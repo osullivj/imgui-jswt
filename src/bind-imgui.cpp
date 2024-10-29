@@ -1,4 +1,5 @@
 #include "imgui.h"
+#include "ImGuiDatePicker.hpp"
 
 #ifndef __FLT_MAX__
 #define __FLT_MAX__ 3.40282346638528859812e+38F
@@ -3020,4 +3021,9 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     }));
     emscripten::function("MemAlloc", FUNCTION(emscripten::val, (size_t sz), { void* p = ImGui::MemAlloc(sz); return emscripten::val(p); }), emscripten::allow_raw_pointers());
     emscripten::function("MemFree", FUNCTION(void, (emscripten::val ptr), { void* _ptr = ptr.as<void*>(emscripten::allow_raw_pointers()); ImGui::MemFree(_ptr); }));
+    
+    // https://github.com/DnA-IntRicate/ImGuiDatePicker
+    emscripten::function("DatePicker", FUNCTION(bool, (std::string label, emscripten::val t), {
+        return ImGui::DatePicker(label.c_str(), access_value<tm>(t));
+    }));
 }

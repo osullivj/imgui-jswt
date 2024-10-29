@@ -11,18 +11,24 @@ clean: clean-bind-imgui clean-imgui clean-example
 # bind-imgui
 
 IMGUI_PATH = imgui
+DATEPICKER_PATH = datepicker
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imconfig.h
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imgui.h
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imgui_internal.h
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imstb_rectpack.h
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imstb_textedit.h
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imstb_truetype.h
+DPGUI_SOURCE_HXX += $(DATEPICKER_PATH)/ImGuiDatePicker.hpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_demo.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_draw.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_tables.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_widgets.cpp
-IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:%.cpp=build/%.o)
+DPGUI_SOURCE_CXX += $(DATEPICKER_PATH)/ImGuiDatePicker.cpp
+# IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:%.cpp=build/%.o)
+IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:imgui/%.cpp=build/%.o)
+DPGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:datepicker/%.cpp=build/%.o)
+
 
 EMSCRIPTEN_SOURCE_D_TS = src/emscripten.d.ts
 EMSCRIPTEN_OUTPUT_D_TS = build/emscripten.d.ts
@@ -48,7 +54,7 @@ FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
 
 BIND_FLAGS += -s NO_FILESYSTEM=1
-# BIND_FLAGS += -s WASM=1
+BIND_FLAGS += -s WASM=0
 BIND_FLAGS += -s MODULARIZE=1
 # BIND_FLAGS += -s EXPORT_NAME=\"ImGui\"
 BIND_FLAGS += -s EXPORT_BINDINGS=1
@@ -72,24 +78,39 @@ clean-bind-imgui:
 	rm -f build/bind-imgui.js build/bind-imgui.js.*
 	rm -f build/bind-imgui.wasm build/bind-imgui.wasm.*
 
-build/%.o: %.cpp $(IMGUI_SOURCE_HXX)
-	mkdir -p ${@D}
+# build/%.o: %.cpp $(IMGUI_SOURCE_HXX)
+# 	"mkdir" -p build
+# 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+    
+build/imgui.o: imgui/imgui.cpp
+	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+
+build/imgui_draw.o: imgui/imgui_draw.cpp
+	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+
+build/imgui_demo.o: imgui/imgui_demo.cpp
+	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+
+build/imgui_tables.o: imgui/imgui_tables.cpp
+	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+
+build/imgui_widgets.o: imgui/imgui_widgets.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
 build/emscripten.d.ts: src/emscripten.d.ts
-	mkdir -p ${@D}
-	cp -fv $< $@
+	"mkdir" -p build
+	"cp" -fv $< $@
 
 build/bind-imgui.d.ts: src/bind-imgui.d.ts
-	mkdir -p ${@D}
-	cp -fv $< $@
+	"mkdir" -p build
+	"cp" -fv $< $@
 
 build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX)
-	mkdir -p ${@D}
-	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
+	"mkdir" -p build
+	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
 
-build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
-	mkdir -p ${@D}
+build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(DPGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
+	"mkdir" -p build
 	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
 
 # imgui

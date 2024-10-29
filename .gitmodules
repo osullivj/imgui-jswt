@@ -1,3 +1,9 @@
 [submodule "imgui"]
 	path = imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "ImGuiDatePicker"]
+	path = ImGuiDatePicker
+	url = https://github.com/DnA-IntRicate/ImGuiDatePicker.git
+[submodule "datepicker"]
+	path = datepicker
+	url = https://github.com/DnA-IntRicate/ImGuiDatePicker.git
