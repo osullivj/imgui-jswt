@@ -1,5 +1,5 @@
 {
-  "name": "imgui-js",
+  "name": "imgui-jswt",
   "version": "1.0.0",
   "description": "JavaScript bindings for Dear ImGui using Emscripten and TypeScript",
   "main": "imgui.js",
