@@ -9,7 +9,6 @@ build: build-bind-imgui build-imgui build-example
 clean: clean-bind-imgui clean-imgui clean-example
 
 # bind-imgui
-
 IMGUI_PATH = imgui
 DATEPICKER_PATH = datepicker
 IMGUI_SOURCE_HXX += $(IMGUI_PATH)/imconfig.h
@@ -25,9 +24,8 @@ IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_draw.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_tables.cpp
 IMGUI_SOURCE_CXX += $(IMGUI_PATH)/imgui_widgets.cpp
 DPGUI_SOURCE_CXX += $(DATEPICKER_PATH)/ImGuiDatePicker.cpp
-# IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:%.cpp=build/%.o)
-IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:imgui/%.cpp=build/%.o)
-DPGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:datepicker/%.cpp=build/%.o)
+IMGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:imgui/%.cpp=example/build/%.o)
+DPGUI_OUTPUT_O = $(IMGUI_SOURCE_CXX:datepicker/%.cpp=example/build/%.o)
 
 
 EMSCRIPTEN_SOURCE_D_TS = src/emscripten.d.ts
@@ -70,6 +68,14 @@ BIND_FLAGS += -s SINGLE_FILE=1
 # BIND_FLAGS += -s ALLOW_MEMORY_GROWTH=1
 BIND_FLAGS += -s EMBIND_STD_STRING_IS_UTF8=1
 
+
+# override default cpp compilation rule to force
+# make to use our explicitly defined rules
+# https://stackoverflow.com/questions/57581376/overriding-implicit-rules-in-makefiles
+%.o: %.cpp
+
+# this target drives copying of .d.ts from src to build, and compilation
+# of src/bind-imgui.cpp
 build-bind-imgui: build/emscripten.d.ts build/bind-imgui.d.ts build/bind-imgui.js
 
 clean-bind-imgui:
@@ -78,23 +84,23 @@ clean-bind-imgui:
 	rm -f build/bind-imgui.js build/bind-imgui.js.*
 	rm -f build/bind-imgui.wasm build/bind-imgui.wasm.*
 
-# build/%.o: %.cpp $(IMGUI_SOURCE_HXX)
-# 	"mkdir" -p build
-# 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
-    
-build/imgui.o: imgui/imgui.cpp
+# explicit targets for each C++ unit of compilation so
+# we don't have to guess which implicit or default rule
+# make is choosing in the background. NB use "make -d"
+# or "make -nd" to see more debug info.
+example/build/imgui.o: imgui/imgui.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
-build/imgui_draw.o: imgui/imgui_draw.cpp
+example/build/imgui_draw.o: imgui/imgui_draw.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
-build/imgui_demo.o: imgui/imgui_demo.cpp
+example/build/imgui_demo.o: imgui/imgui_demo.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
-build/imgui_tables.o: imgui/imgui_tables.cpp
+example/build/imgui_tables.o: imgui/imgui_tables.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
-build/imgui_widgets.o: imgui/imgui_widgets.cpp
+example/build/imgui_widgets.o: imgui/imgui_widgets.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
 build/emscripten.d.ts: src/emscripten.d.ts
@@ -113,8 +119,7 @@ build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(DPGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
 	"mkdir" -p build
 	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
 
-# imgui
-
+# NPM build steps
 build-imgui:
 	npm run build-imgui
 
@@ -122,7 +127,6 @@ clean-imgui:
 	npm run clean-imgui
 
 # example
-
 build-example:
 	npm run build-example
 
@@ -138,7 +142,6 @@ start-example-html:
 	npm run start-example-html
 
 # native-example
-
 IMGUI_NATIVE_EXAMPLE_PATH = $(IMGUI_PATH)/examples/example_sdl_opengl2
 IMGUI_NATIVE_EXAMPLE_SOURCE_CXX += $(IMGUI_NATIVE_EXAMPLE_PATH)/main.cpp
 IMGUI_NATIVE_EXAMPLE_SOURCE_CXX += $(IMGUI_PATH)/backends/imgui_impl_sdl.cpp
