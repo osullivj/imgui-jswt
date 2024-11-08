@@ -37,6 +37,9 @@ BIND_IMGUI_SOURCE_CXX = src/bind-imgui.cpp
 BIND_IMGUI_OUTPUT_O = build/bind-imgui.o
 BIND_IMGUI_OUTPUT_JS = build/bind-imgui.js
 
+# special target for link line...
+DATE_IMGUI_OUTPUT_O = example/build/ImGuiDatePicker.o
+
 # debug flags
 # FLAGS += -g4
 # FLAGS += -O0
@@ -74,6 +77,13 @@ BIND_FLAGS += -s EMBIND_STD_STRING_IS_UTF8=1
 # https://stackoverflow.com/questions/57581376/overriding-implicit-rules-in-makefiles
 %.o: %.cpp
 
+# restrict pre-requisiste search for .o to build and example/build
+# on Windows, the emscripten_temp dir gets pulled in by the $^ all
+# prereqs. Since the emscripten_temps are copied to example/build
+# anyway, this causes double definitions.
+vpath %.o build
+vpath %.o example/build
+
 # this target drives copying of .d.ts from src to build, and compilation
 # of src/bind-imgui.cpp
 build-bind-imgui: build/emscripten.d.ts build/bind-imgui.d.ts build/bind-imgui.js
@@ -103,6 +113,15 @@ example/build/imgui_tables.o: imgui/imgui_tables.cpp
 example/build/imgui_widgets.o: imgui/imgui_widgets.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
+example/build/ImGuiDatePicker.o: datepicker/ImGuiDatePicker.cpp
+	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
+
+# explicit list of objects
+IMGUI_OBJECTS=example/build/imgui.o example/build/imgui_draw.o 
+IMGUI_OBJECTS+=example/build/imgui_demo.o example/build/imgui_tables.o 
+IMGUI_OBJECTS+=example/build/imgui_widgets.o example/build/ImGuiDatePicker.o 
+
+
 build/emscripten.d.ts: src/emscripten.d.ts
 	"mkdir" -p build
 	"cp" -fv $< $@
@@ -111,13 +130,16 @@ build/bind-imgui.d.ts: src/bind-imgui.d.ts
 	"mkdir" -p build
 	"cp" -fv $< $@
 
-build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX)
+build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX) $(IMGUI_OBJECTS)
 	"mkdir" -p build
-	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
+#	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
+	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< $(IMGUI_OBJECTS) -o $@
 
 build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(DPGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
 	"mkdir" -p build
-	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
+	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $(IMGUI_OBJECTS) $(BIND_IMGUI_OUTPUT_O) -o $@
+#	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
+#	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $(BIND_IMGUI_OUTPUT_O) -o $@
 
 # NPM build steps
 build-imgui:
