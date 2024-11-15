@@ -127,7 +127,8 @@ class H3Context {
         let msg_json = JSON.stringify(msg);
         console.log('H3Context._sendDatagram: ' + msg_json);
         let data = this.encoder.encode(msg_json);
-        await this.dgram_writer.write(data);
+        // TODO: websock write
+        // await this.dgram_writer.write(data);
         return 0;
     }
     
@@ -151,45 +152,10 @@ class H3Context {
     }
     
     async connect(url: string): Promise<number> {
-        try {
-            this.web_trans = new WebTransport(url);
-            console.log("Initiating H3Connection...");
-        } catch (e) {
-            console.log("Failed to create H3Connection object. " + e);
-            return 1;
-        }
-
-        try {
-            await this.web_trans.ready;
-            console.log("H3Connection ready.");
-        } catch (e) {
-            console.log("H3Connection failed. " + e);
-            return 2;
-        }
-
-        this.web_trans.closed.then(() => {
-            console.log("H3Connection closed normally.");
-        }).catch(() => {
-            console.log("H3Connection closed abruptly.");
-        });
-       
-        try {
-            this.dgram_writer = this.web_trans.datagrams.writable.getWriter();
-            console.log('Datagram writer ready.');
-        } catch (e) {
-            console.log('Sending datagrams not supported: ' + e, 'error');
-            return 3;
-        }
-        try {
-            this.dgram_reader = this.web_trans.datagrams.readable.getReader();
-            console.log('Datagram reader ready.');    
-        } catch (e) {
-            console.log("Datagram reader init failed: " + e);
-            return 4;
-        }
+        // TODO: replace the previous WebTransport impl with WebSock
         // schedule call to send static data requests to back end
         // NB use closure to invoke otherwise this===globalThis
-        window.setTimeout(_h3checkInit, this.init_interval);
+        // window.setTimeout(_h3checkInit, this.init_interval);
         return 0;
     }
 }
@@ -200,8 +166,8 @@ let _h3InstStaticRequest = new H3InstStaticRequest();
 
 // Reads datagrams from web_trans into the event log until EOF is reached.
 async function _h3readDatagrams() {
-    let err = await _h3ctx._readDatagrams();
-    window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
+    // let err = await _h3ctx._readDatagrams();
+    // window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
 }
 
 async function _h3checkInit() {
@@ -210,7 +176,7 @@ async function _h3checkInit() {
         return;
     }
     // init is not complete, so schedule another callback to check
-    window.setTimeout(_h3checkInit, _h3ctx.init_interval);    
+    // window.setTimeout(_h3checkInit, _h3ctx.init_interval);    
     if (_h3ctx.earliest_ts === null) {
         await _h3ctx._sendDatagram(_h3TSRangeRequest);
     }
@@ -275,11 +241,9 @@ async function _init(): Promise<void> {
     }
     
     // await _h3connect();
-    await _h3ctx.connect("https://localhost:4433");
-    
-    window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
-    
+    // await _h3ctx.connect("https://localhost:4433");   
     if (typeof(window) !== "undefined") {
+        // window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);        
         window.requestAnimationFrame(_loop);
     }
 }
