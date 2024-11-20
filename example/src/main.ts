@@ -2,6 +2,13 @@ import * as ImGui from "imgui-js";
 import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
+import fetch from 'node-fetch';
+import { ArrayQueue,
+  ConstantBackoff,
+  Websocket,
+  WebsocketBuilder,
+  WebsocketEvent,
+} from "websocket-ts";
 
 let font: ImGui.Font | null = null;
 
@@ -47,143 +54,74 @@ async function AddFontFromFileTTF(url: string, size_pixels: number, font_cfg: Im
     return ImGui.GetIO().Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
 }
 
-abstract class H3Message {
+class NDMessage {
     constructor(readonly h3type:string) {}
 }
 
-class H3TSRangeRequest extends H3Message {
-    constructor() {super("ts_range_request");}
-}
-
-class H3InstStaticRequest extends H3Message {
-    constructor() {super("inst_static_request");}
-}
-
-class H3Context {
-    // WebTransport state
-    web_trans: any;     // no definitive WebTransport IDL!
-    dgram_reader: any;
-    dgram_writer: any;
+// Use node-fetch for HTTP GET as it's already in package-lock.json
+// https://stackoverflow.com/questions/45748476/http-request-in-typescript
+// Use websocket-ts for websock via "npm install websocket-ts"
+// https://www.npmjs.com/package/websocket-ts
+class NDContext {
+    websock: Websocket;
+    websock_url: string;
+    layout_url: string;
+    cache_url: string;
     decoder: any;
     encoder: any;
-    // ts_range and inst_map from the back end
-    earliest_ts: Date | null;
-    latest_ts: Date;
-    inst_map: Map<string, number> | null;
-    // index into inst_map.keys()
-    current_inst: number;
-    start_ts: Date;
-    end_ts: Date;
+    layout: any;
+    cache: Map<string, any>;
+    data_type_u8: Uint8Array;     // was used by InputScalar for RV
     // consts
-    data_type_u8: Uint8Array;
-    earliest_year: number;
     update_interval: number;
     init_interval: number;    
+    
     
     constructor() {
         this.data_type_u8 = new Uint8Array([255]);
         this.decoder = new TextDecoder('utf-8');
         this.encoder = new TextEncoder();
-        this.earliest_year = 2000;
         this.update_interval = 50;
         this.init_interval = 1000;
-        this.earliest_ts = null; // new Date();
-        this.latest_ts = new Date();
-        this.start_ts = new Date();
-        this.end_ts = new Date();        
-        this.inst_map = null; // new Map<string,number>();
-        this.current_inst = 0;
+        // Some standard URLs recognised on the server side
+        this.websock_url = "ws://" + window.location.hostname + ":8090/websock";
+        this.layout_url = "http://" + window.location.hostname + ":8090/layout";
+        this.cache_url = "http://" + window.location.hostname + ":8090/cache";        
+        // Initialize WebSocket with buffering and 1s reconnection delay        
+        this.websock = new WebsocketBuilder(this.websock_url).build();
+        this.websock.addEventListener(WebsocketEvent.open, () => console.log("opened!"));
+        this.websock.addEventListener(WebsocketEvent.close, () => console.log("closed!"));
+        this.websock.addEventListener(WebsocketEvent.message, this.update);
+        // stuff that will be supplied later
+        this.layout = null;
+        this.cache = new Map<string, any>();
+    }
+    
+    async init(): Promise<number> {
+        // HTTP GET to fetch layout description in JSON
+        const layout_response = await fetch(this.layout_url);
+        const layout_json = layout_response.json();
+        console.log('NDContext.init: ' + layout_json);
+        this.layout = await JSON.parse(layout_json);
+        // Pull cache init from server
 
-    }
-    
-    _set_ts_range(data: any) {
-        this.earliest_ts = new Date(Date.parse(data.earliest_ts));
-        this.latest_ts = new Date(Date.parse(data.latest_ts));
-        this.start_ts = new Date(this.earliest_ts);
-        this.end_ts = new Date(this.earliest_ts);
-        this.end_ts.setHours(this.end_ts.getHours() + 1);
-        this.earliest_year = this.earliest_ts.getFullYear();
-    }
-    
-    _set_inst_map(data: any) {
-        this.inst_map = new Map<string,number>(Object.entries(data.instruments));
-    }
-    
-    update(value: any) {
-        let data_s:string = this.decoder.decode(value);
-        console.log('H3Context.update: ' + data_s);
-        let data:any = JSON.parse(data_s);
-        switch (data.h3type) {
-            case "ts_range":
-                this._set_ts_range(data);
-                break;
-            case "inst_static":
-                this._set_inst_map(data);
-                break;
-        }
-    }
-    
-    async _sendDatagram(msg:H3Message): Promise<number> {
-        let msg_json = JSON.stringify(msg);
-        console.log('H3Context._sendDatagram: ' + msg_json);
-        let data = this.encoder.encode(msg_json);
-        // TODO: websock write
-        // await this.dgram_writer.write(data);
+        const cache_response = await fetch(this.cache_url);
+        const cache_json = cache_response.json();
+        console.log('NDContext.init: ' + cache_json);
+        this.cache = await JSON.parse(cache_json);
         return 0;
     }
     
-    async _readDatagrams(): Promise<number> {
-        console.log("ENTR _readDatagrams");
-        try {
-            while (true) {
-                const { value, done } = await _h3ctx.dgram_reader.read();
-                if (done) {
-                    console.log('DONE _readDatagrams');
-                    return 0;
-                }
-                this.update(value);
-            }
-        } catch (e) {
-            console.log('ERR _readDatagrams: ' + JSON.stringify(e));
-            return 1;
-        }
-        console.log("EXIT _readDatagrams");
-        return 0;
+    update(ws: Websocket, ev: MessageEvent) {
+        // let data_s:string = this.decoder.decode(value);
+        console.log('NDContext.update: ' + ev.data);
+        let data:any = JSON.parse(ev.data);
+        // cache update code here...
     }
-    
-    async connect(url: string): Promise<number> {
-        // TODO: replace the previous WebTransport impl with WebSock
-        // schedule call to send static data requests to back end
-        // NB use closure to invoke otherwise this===globalThis
-        // window.setTimeout(_h3checkInit, this.init_interval);
-        return 0;
-    }
+ 
 }
 
-let _h3ctx: H3Context = new H3Context();
-let _h3TSRangeRequest = new H3TSRangeRequest();
-let _h3InstStaticRequest = new H3InstStaticRequest();
-
-// Reads datagrams from web_trans into the event log until EOF is reached.
-async function _h3readDatagrams() {
-    // let err = await _h3ctx._readDatagrams();
-    // window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);
-}
-
-async function _h3checkInit() {
-    if (_h3ctx.earliest_ts !== null && _h3ctx.inst_map !== null) {
-        // init is complete...
-        return;
-    }
-    // init is not complete, so schedule another callback to check
-    // window.setTimeout(_h3checkInit, _h3ctx.init_interval);    
-    if (_h3ctx.earliest_ts === null) {
-        await _h3ctx._sendDatagram(_h3TSRangeRequest);
-    }
-    if (_h3ctx.inst_map === null) {
-        await _h3ctx._sendDatagram(_h3InstStaticRequest);
-    }
-}
+let _nd_ctx: NDContext = new NDContext();
 
 
 async function _init(): Promise<void> {
@@ -240,10 +178,8 @@ async function _init(): Promise<void> {
         ImGui_Impl.Init(null);
     }
     
-    // await _h3connect();
-    // await _h3ctx.connect("https://localhost:4433");   
     if (typeof(window) !== "undefined") {
-        // window.setTimeout(_h3readDatagrams, _h3ctx.update_interval);        
+        await _nd_ctx.init();
         window.requestAnimationFrame(_loop);
     }
 }
@@ -275,36 +211,8 @@ function _loop(time: number): void {
     {
         // static float f = 0.0f;
         // static int counter = 0;
-        ImGui.Begin("HFGUI");
-        
-        // inst select drop down
-        if (_h3ctx.inst_map !== null) { // _h3ctx.inst_map.size > 0) {
-            // Using the generic BeginCombo() API, you have full control over how to display the combo contents.
-            // (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
-            // stored in the object itself, etc.)
-            const insts: string[] = Array.from(_h3ctx.inst_map.keys());
-            const combo_preview_value: string = insts[_h3ctx.current_inst];
-            // TODO: last param is flags for combo styling
-            if (ImGui.BeginCombo("Instrument", combo_preview_value, 0)) {
-                for (let n = 0; n < ImGui.ARRAYSIZE(insts); n++) {
-                    const is_selected: boolean = (_h3ctx.current_inst === n);
-                    if (ImGui.Selectable(insts[n], is_selected))
-                        _h3ctx.current_inst = n;
-                    // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-                    if (is_selected)
-                        ImGui.SetItemDefaultFocus();
-                }
-                ImGui.EndCombo();
-            }
-        }
-        // start end datetime grid
-        // TODO use InputScalar for YMD HMS
-        if (_h3ctx.earliest_ts !== null) {
-            ImGui.InputScalar("Y", _h3ctx.data_type_u8, _h3ctx.start_ts.getFullYear(), _h3ctx.earliest_ts.getFullYear(), "%u");
-        }
-        
-        // depth grid
-
+        ImGui.Begin(_nd_ctx.layout.home.title);
+ 
         // main GUI footer
         ImGui.Text(`Application average ${(1000.0 / ImGui.GetIO().Framerate).toFixed(3)} ms/frame (${ImGui.GetIO().Framerate.toFixed(1)} FPS)`);
         ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
