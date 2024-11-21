@@ -2,13 +2,6 @@ import * as ImGui from "imgui-js";
 import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
-import fetch from 'node-fetch';
-import { ArrayQueue,
-  ConstantBackoff,
-  Websocket,
-  WebsocketBuilder,
-  WebsocketEvent,
-} from "websocket-ts";
 
 let font: ImGui.Font | null = null;
 
@@ -63,10 +56,7 @@ class NDMessage {
 // Use websocket-ts for websock via "npm install websocket-ts"
 // https://www.npmjs.com/package/websocket-ts
 class NDContext {
-    websock: Websocket;
-    websock_url: string;
-    layout_url: string;
-    cache_url: string;
+    websock: any;
     decoder: any;
     encoder: any;
     layout: any;
@@ -78,41 +68,52 @@ class NDContext {
     
     
     constructor() {
+        this.websock = null;
         this.data_type_u8 = new Uint8Array([255]);
         this.decoder = new TextDecoder('utf-8');
         this.encoder = new TextEncoder();
         this.update_interval = 50;
         this.init_interval = 1000;
-        // Some standard URLs recognised on the server side
-        this.websock_url = "ws://" + window.location.hostname + ":8090/websock";
-        this.layout_url = "http://" + window.location.hostname + ":8090/layout";
-        this.cache_url = "http://" + window.location.hostname + ":8090/cache";        
-        // Initialize WebSocket with buffering and 1s reconnection delay        
-        this.websock = new WebsocketBuilder(this.websock_url).build();
-        this.websock.addEventListener(WebsocketEvent.open, () => console.log("opened!"));
-        this.websock.addEventListener(WebsocketEvent.close, () => console.log("closed!"));
-        this.websock.addEventListener(WebsocketEvent.message, this.update);
         // stuff that will be supplied later
         this.layout = null;
         this.cache = new Map<string, any>();
     }
     
     async init(): Promise<number> {
+        if (typeof(window) === "undefined") return 0;
+        
+        // Some standard URLs recognised on the server side
+        let websock_url = "ws://" + window.location.hostname + ":8090/websock";
+        let layout_url = "http://" + window.location.hostname + ":8090/layout";
+        let cache_url = "http://" + window.location.hostname + ":8090/cache";        
+        // Initialize WebSocket with buffering and 1s reconnection delay        
+        this.websock = new WebSocket(websock_url);
+        this.websock.onopen = this.on_open;
+        this.websock.onclose = this.on_close;
+        this.websock.onmessage = this.update;
         // HTTP GET to fetch layout description in JSON
-        const layout_response = await fetch(this.layout_url);
-        const layout_json = layout_response.json();
+        const layout_response = await window.fetch(layout_url);
+        const layout_json = await layout_response.json();
         console.log('NDContext.init: ' + layout_json);
-        this.layout = await JSON.parse(layout_json);
+        this.layout = JSON.parse(layout_json);
         // Pull cache init from server
-
-        const cache_response = await fetch(this.cache_url);
-        const cache_json = cache_response.json();
+        const cache_response = await window.fetch(cache_url);
+        const cache_json = await cache_response.json();
         console.log('NDContext.init: ' + cache_json);
         this.cache = await JSON.parse(cache_json);
+
         return 0;
     }
     
-    update(ws: Websocket, ev: MessageEvent) {
+    on_open(ev: any): void {
+        console.log("Websock connected");
+    }
+    
+    on_close(ev: any): void {
+        console.log("Websock closed");
+    }
+    
+    update(ev: any): void {
         // let data_s:string = this.decoder.decode(value);
         console.log('NDContext.update: ' + ev.data);
         let data:any = JSON.parse(ev.data);
@@ -179,6 +180,8 @@ async function _init(): Promise<void> {
     }
     
     if (typeof(window) !== "undefined") {
+        // all the heavyweight init should be done here, before we kick
+        // off the animation loop...
         await _nd_ctx.init();
         window.requestAnimationFrame(_loop);
     }
@@ -211,7 +214,7 @@ function _loop(time: number): void {
     {
         // static float f = 0.0f;
         // static int counter = 0;
-        ImGui.Begin(_nd_ctx.layout.home.title);
+        ImGui.Begin(_nd_ctx.layout === null ? "nodom" : _nd_ctx.layout.home.title);
  
         // main GUI footer
         ImGui.Text(`Application average ${(1000.0 / ImGui.GetIO().Framerate).toFixed(3)} ms/frame (${ImGui.GetIO().Framerate.toFixed(1)} FPS)`);

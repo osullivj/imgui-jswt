@@ -8,7 +8,7 @@
     "outDir": "build",
     "baseUrl": ".",
     "paths": {
-      "imgui-js": [ "../build/imgui" ],
+      "imgui-js": [ "../build/imgui" ]
     }
   },
   "files": [
