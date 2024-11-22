@@ -83,9 +83,9 @@ class NDContext {
         if (typeof(window) === "undefined") return 0;
         
         // Some standard URLs recognised on the server side
-        let websock_url = "ws://" + window.location.hostname + ":8090/websock";
-        let layout_url = "http://" + window.location.hostname + ":8090/layout";
-        let cache_url = "http://" + window.location.hostname + ":8090/cache";        
+        let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
+        let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
+        let cache_url = "http://" + window.location.hostname + ":8090/api/cache";        
         // Initialize WebSocket with buffering and 1s reconnection delay        
         this.websock = new WebSocket(websock_url);
         this.websock.onopen = this.on_open;
@@ -93,12 +93,12 @@ class NDContext {
         this.websock.onmessage = this.update;
         // HTTP GET to fetch layout description in JSON
         const layout_response = await window.fetch(layout_url);
-        const layout_json = await layout_response.json();
+        const layout_json = await layout_response.text();
         console.log('NDContext.init: ' + layout_json);
         this.layout = JSON.parse(layout_json);
         // Pull cache init from server
         const cache_response = await window.fetch(cache_url);
-        const cache_json = await cache_response.json();
+        const cache_json = await cache_response.text();
         console.log('NDContext.init: ' + cache_json);
         this.cache = await JSON.parse(cache_json);
 
