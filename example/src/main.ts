@@ -43,97 +43,93 @@ export default async function main(): Promise<void> {
 
 
 
-// Base widget
-abstract class NDWidget {
-    nd_type:string;
-    // TODO: possible optimisation to presize child array correctly
-    // from layout.json 
-    children:NDWidget[] = [];
+// An initial cache value supplied by /api/cache
+// Here we permit nesting via array and obj, but no classes
+type CacheValue = string | number | boolean | CacheObject | CacheArray;
+interface CacheObject {
+  [key: string]: CacheValue;
+}
+interface CacheArray extends Array<CacheValue> {}
+type CacheMap = Map<string,CacheValue>;
 
-    constructor(readonly ndtype:string) {
-        this.nd_type = ndtype;
-    }
-    
-    abstract render(): void;
-    
-    render_children(): void {
-        
-    }
+// for parsing /api/layout
+type RenderFunc = (ctx:NDContext, w:Widget) => void;
+function default_render_func(ctx:NDContext, w: Widget): void {
+    console.error("${w.rname} unresolved");
 }
 
-class NDHome extends NDWidget {
-    constructor(readonly ndtype:string) {
-        super(ndtype);
-    }
-    
-    render(): void {
-        ImGui.Begin(_nd_ctx.layout === null ? "nodom" : _nd_ctx.layout.home.title);     
-        this.render_children();
-        ImGui.End();
-    }
-}
+interface Widget {
+    rname:string;
+    rfunc?:RenderFunc;
+    cspec:CacheMap;
+    children?:Widget[];
+};
 
-class NDInputInt extends NDWidget {
-    constructor(readonly ndtype:string) {
-        super(ndtype);
-    }
-    
-    render(): void {
-    }
+
+function dispatch_render(ctx:NDContext, w: Widget): void {
+    if (!w.rfunc) w.rfunc = ctx.rfmap.get(w.rname);
+    if (w.rfunc) w.rfunc(ctx, w);    
 }
 
 
-class NDLabel extends NDWidget {
-    constructor(readonly ndtype:string) {
-        super(ndtype);
-    }
-    
-    render(): void {
-    }
+function render_container(ctx:NDContext, widget: Widget): void {
+    if (widget.children) widget.children.forEach( (w) => {dispatch_render(ctx, widget);});
 }
 
-class NDHomeFooter extends NDWidget {
-    constructor(readonly ndtype:string) {
-        super(ndtype);
-    }
-    
-    render(): void {
-        // static float f = 0.0f;
-        // static int counter = 0;
 
- 
-        // main GUI footer
-        ImGui.Text(`Application average ${(1000.0 / ImGui.GetIO().Framerate).toFixed(3)} ms/frame (${ImGui.GetIO().Framerate.toFixed(1)} FPS)`);
-        ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
-        ImGui.SameLine();
-        ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state        
-        if (memory_editor.Open)
-            memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
-        const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
-        // ImGui.Text(`Total non-mmapped bytes (arena):       ${mi.arena}`);
-        // ImGui.Text(`# of free chunks (ordblks):            ${mi.ordblks}`);
-        // ImGui.Text(`# of free fastbin blocks (smblks):     ${mi.smblks}`);
-        // ImGui.Text(`# of mapped regions (hblks):           ${mi.hblks}`);
-        // ImGui.Text(`Bytes in mapped regions (hblkhd):      ${mi.hblkhd}`);
-        ImGui.Text(`Max. total allocated space (usmblks):  ${mi.usmblks}`);
-        // ImGui.Text(`Free bytes held in fastbins (fsmblks): ${mi.fsmblks}`);
-        ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
-        ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
-        
-        if (_nd_ctx.font) {
-            ImGui.PushFont(_nd_ctx.font);
-            ImGui.Text(`${_nd_ctx.font.GetDebugName()}`);
-            if (_nd_ctx.font.FindGlyphNoFallback(0x5929)) {
-                ImGui.Text(`U+5929: \u5929`);
-            }
-            ImGui.PopFont();
+function render_home(ctx:NDContext, w: Widget): void {
+    let title = w.cspec.get("title") as string;
+    ImGui.Begin(title ? title : "nodom");
+    render_container(ctx, w);
+    ImGui.End();
+}
+
+
+function render_input_int(ctx:NDContext, w: Widget): void {
+    let cache_name = w.cspec.get("cname") as string;
+    let cache_accessor = ctx.cache.get(cache_name);
+    ImGui.InputInt(cache_name, cache_accessor.access);
+}
+
+
+function render_label(ctx:NDContext, w: Widget): void {
+
+}
+
+// main GUI footer
+function render_footer(ctx:NDContext, w: Widget): void {
+    ImGui.Text(`Application average ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame (${ctx.io!.Framerate.toFixed(1)} FPS)`);
+    ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
+    ImGui.SameLine();
+    ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state        
+    if (memory_editor.Open)
+        memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
+    const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
+    // ImGui.Text(`Total non-mmapped bytes (arena):       ${mi.arena}`);
+    // ImGui.Text(`# of free chunks (ordblks):            ${mi.ordblks}`);
+    // ImGui.Text(`# of free fastbin blocks (smblks):     ${mi.smblks}`);
+    // ImGui.Text(`# of mapped regions (hblks):           ${mi.hblks}`);
+    // ImGui.Text(`Bytes in mapped regions (hblkhd):      ${mi.hblkhd}`);
+    ImGui.Text(`Max. total allocated space (usmblks):  ${mi.usmblks}`);
+    // ImGui.Text(`Free bytes held in fastbins (fsmblks): ${mi.fsmblks}`);
+    ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
+    ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
+       
+    if (ctx.font) {
+        ImGui.PushFont(ctx.font);
+        ImGui.Text(`${ctx.font.GetDebugName()}`);
+        if (ctx.font.FindGlyphNoFallback(0x5929)) {
+            ImGui.Text(`U+5929: \u5929`);
         }
+        ImGui.PopFont();
     }
+}   
+
+class CacheAccess<T> {
+    constructor(public value: T) {}
+    access: ImGui.Access<T> = (value: T = this.value): T => this.value = value;
 }
 
-class NDMessage {
-    constructor(readonly h3type:string) {}
-}
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
@@ -143,11 +139,12 @@ class NDContext {
     websock: any;
     decoder: any;
     encoder: any;
-    layout: any;
-    cache: Map<string, any> = new Map<string, any>();
-    wctor: Map<string, any> = new Map<string, any>([
-            ["InputInt", NDInputInt],
-            ["Label", NDLabel]
+    // layout: any;
+    layout: Array<Widget> = new Array<Widget>();    
+    cache: Map<string, CacheAccess> = new Map();
+    rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
+            ["InputInt", render_input_int],
+            ["Label", render_label]
         ]);      // widget constructors
     stack: any[] = [];
     data_type_u8: Uint8Array;     // was used by InputScalar for RV
@@ -155,8 +152,9 @@ class NDContext {
     update_interval: number;
     init_interval: number;
     // fonts
-    font: ImGui.Font|null;
-    io: ImGui.IO = ImGui.GetIO();
+    font: ImGui.Font|null = null;
+    io: ImGui.IO|null = null;
+    home: any|null = null;          // handle to Home layout
     
     
     constructor() {
@@ -168,19 +166,20 @@ class NDContext {
         this.init_interval = 1000;
         // stuff that will be supplied later
         this.font = null;
-        this.layout = null;
+        // this.layout = null;
         // this.stack = [];
         // this.cache = new Map<string, any>();
         // this.wctor = 
     }
 
     async load_font_ttf(url: string, size_pixels: number, font_cfg: ImGui.FontConfig | null = null, glyph_ranges: number | null = null): Promise<ImGui.Font> {
+        this.io = ImGui.GetIO();
         this.io.Fonts.AddFontDefault();
         font_cfg = font_cfg || new ImGui.FontConfig();
         font_cfg.Name = font_cfg.Name || `${url.split(/[\\\/]/).pop()}, ${size_pixels.toFixed(0)}px`;
         return this.io.Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
     }
-    
+
     async init(): Promise<number> {
         if (typeof(window) === "undefined") return 0;
         
@@ -197,19 +196,23 @@ class NDContext {
         const layout_response = await window.fetch(layout_url);
         const layout_json = await layout_response.text();
         console.log('NDContext.init: ' + layout_json);
-        this.layout = JSON.parse(layout_json);
+        this.layout = JSON.parse(layout_json) as Array<Widget>;
         // Pull cache init from server
         const cache_response = await window.fetch(cache_url);
         const cache_json = await cache_response.text();
         console.log('NDContext.init: ' + cache_json);
-        this.cache = await JSON.parse(cache_json);
+        let cache_init = await JSON.parse(cache_json) as CacheObject;
+        for (let ckey in cache_init) {
+            // put ImAccess code in here
+            this.cache.set(ckey, new CacheAccess(cache_init[ckey]));
+        }
         
         // Load font
         this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
         ImGui.ASSERT(this.font !== null);
 
         // Finally, tee up the first element in layout to render: home
-        this.push(this.layout.home);
+        this.stack.push(this.layout[0]);
 
         return 0;
     }
@@ -231,13 +234,18 @@ class NDContext {
     }
     
     render() {
+        // fire the render methods of all the widgets on the stack
+        // starting with the bottom of the stack: NDHome
+        console.log('NDContext.render: child count ' + this.stack.length);
+        this.stack.forEach((widget) => { dispatch_render(this, widget);});
     }
     
-    push(layout_element:any) {
+    push(layout_element:any): void {
+        this.stack.push(layout_element);
     }
     
-    pop()
-    {
+    pop(): void {
+        this.stack.pop();
     }
  
 }
@@ -254,7 +262,7 @@ async function _init(): Promise<void> {
     // Setup Dear ImGui context
     ImGui.CHECKVERSION();
     ImGui.CreateContext();
-    const io: ImGui.IO = ImGui.GetIO();
+    // const io: ImGui.IO = ImGui.GetIO();
     //io.ConfigFlags |= ImGui.ConfigFlags.NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGui.ConfigFlags.NavEnableGamepad;      // Enable Gamepad Controls
 
@@ -316,7 +324,6 @@ function _loop(time: number): void {
     // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
     // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
     
-    
     // Start the Dear ImGui frame
     ImGui_Impl.NewFrame(time);
     ImGui.NewFrame();
@@ -341,10 +348,10 @@ function _loop(time: number): void {
         //gl.useProgram(0); // You may want this if using this code in an OpenGL 3+ context where shaders may be bound
     }
 
-    const ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
-    if (ctx) {
-        ctx.fillStyle = `rgba(${clear_color.x * 0xff}, ${clear_color.y * 0xff}, ${clear_color.z * 0xff}, ${clear_color.w})`;
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    const gl_ctx: CanvasRenderingContext2D | null = ImGui_Impl.ctx;
+    if (gl_ctx) {
+        gl_ctx.fillStyle = `rgba(${clear_color.x * 0xff}, ${clear_color.y * 0xff}, ${clear_color.z * 0xff}, ${clear_color.w})`;
+        gl_ctx.fillRect(0, 0, gl_ctx.canvas.width, gl_ctx.canvas.height);
     }
 
     ImGui_Impl.RenderDrawData(ImGui.GetDrawData());
