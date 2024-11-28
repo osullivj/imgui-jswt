@@ -107,7 +107,7 @@ function dispatch_render(ctx:NDContext, w: Widget): void {
 
 
 function render_container(ctx:NDContext, widget: Widget): void {
-    if (widget.children) widget.children.forEach( (w) => {dispatch_render(ctx, widget);});
+    if (widget.children) widget.children.forEach( (w) => {dispatch_render(ctx, w);});
 }
 
 
@@ -122,8 +122,8 @@ function render_home(ctx:NDContext, w: Widget): void {
 
 
 function render_input_int(ctx:NDContext, w: Widget): void {
-    let cache_name = w.cspec.get("cname") as string;
-    let init_val = 12; // ctx.cache.get(cache_name) as number;
+    let cache_name = w.cspec["cname" as keyof CacheMap] as string;
+    let init_val = ctx.cache[cache_name as keyof CacheMap] as number;
     let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
     ImGui.InputInt(cache_name, cache_accessor.access);
 }
