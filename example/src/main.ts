@@ -51,6 +51,7 @@ interface CacheObject {
 }
 interface CacheArray extends Array<CacheValue> {}
 type CacheMap = Map<string,CacheValue>;
+type CacheMapEntry = {[key: string]: CacheValue};
 
 // for parsing /api/layout
 type RenderFunc = (ctx:NDContext, w:Widget) => void;
@@ -58,17 +59,50 @@ function default_render_func(ctx:NDContext, w: Widget): void {
     console.error("${w.rname} unresolved");
 }
 
+// This was an Interface. But that meant type info did
+// not persist beyound compile time, causing problems
+// with render methods recovering data from CacheMap.
 interface Widget {
     rname:string;
     rfunc?:RenderFunc;
     cspec:CacheMap;
     children?:Widget[];
+    // TS index signature so we can use [] as accessor
+    [key: string]: undefined | string | RenderFunc | CacheMap | Widget[];
 };
+
+/**
+class Widget {
+    rname:string = "unintialized";
+    rfunc:RenderFunc|null|undefined = null;
+    cspec:CacheMap = new Map();
+    children:Widget[] = [];
+}; */
+
+
+class Cached<T> {
+    constructor(public value: T) {}
+    access: ImGui.Access<T> = (value: T = this.value): T => this.value = value;
+}
+
+function accessor_factory<T>(ctx:NDContext, key: string, initial_value: T): Cached<T> {
+    let value: Cached<T> | undefined = ctx.cache.get(key);
+    if (value === undefined) { ctx.cache.set(key, value = new Cached<T>(initial_value)); }
+    return value;
+}
 
 
 function dispatch_render(ctx:NDContext, w: Widget): void {
-    if (!w.rfunc) w.rfunc = ctx.rfmap.get(w.rname);
-    if (w.rfunc) w.rfunc(ctx, w);    
+    // Attempt to resolve rname to rfunc
+    if (!w.rfunc) {
+        w.rfunc = ctx.rfmap.get(w.rname);
+    }
+    if (w.rfunc) {
+        w.rfunc(ctx, w);
+    }
+    else {
+        console.log('dispatch_render: missing render func: ' + w.rname);
+    }
 }
 
 
@@ -78,7 +112,9 @@ function render_container(ctx:NDContext, widget: Widget): void {
 
 
 function render_home(ctx:NDContext, w: Widget): void {
-    let title = w.cspec.get("title") as string;
+    // as keyof CacheMap clause here is critical
+    // as w.cspec["title"] will not compile...
+    var title = w.cspec["title" as keyof CacheMap] as string;
     ImGui.Begin(title ? title : "nodom");
     render_container(ctx, w);
     ImGui.End();
@@ -87,7 +123,8 @@ function render_home(ctx:NDContext, w: Widget): void {
 
 function render_input_int(ctx:NDContext, w: Widget): void {
     let cache_name = w.cspec.get("cname") as string;
-    let cache_accessor = ctx.cache.get(cache_name);
+    let init_val = 12; // ctx.cache.get(cache_name) as number;
+    let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
     ImGui.InputInt(cache_name, cache_accessor.access);
 }
 
@@ -125,11 +162,6 @@ function render_footer(ctx:NDContext, w: Widget): void {
     }
 }   
 
-class CacheAccess<T> {
-    constructor(public value: T) {}
-    access: ImGui.Access<T> = (value: T = this.value): T => this.value = value;
-}
-
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
@@ -140,13 +172,16 @@ class NDContext {
     decoder: any;
     encoder: any;
     // layout: any;
-    layout: Array<Widget> = new Array<Widget>();    
-    cache: Map<string, CacheAccess> = new Map();
+    layout: Widget[] = []; // new Array<Widget>();
+    stack: Widget[] = []; // new Array<Widget>();    
+    cache: Map<string, Cached<any>> = new Map();
+    // cache: CacheMap = new CacheMap();
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
+            ["Home", render_home],
             ["InputInt", render_input_int],
             ["Label", render_label]
         ]);      // widget constructors
-    stack: any[] = [];
+
     data_type_u8: Uint8Array;     // was used by InputScalar for RV
     // consts
     update_interval: number;
@@ -201,10 +236,22 @@ class NDContext {
         const cache_response = await window.fetch(cache_url);
         const cache_json = await cache_response.text();
         console.log('NDContext.init: ' + cache_json);
-        let cache_init = await JSON.parse(cache_json) as CacheObject;
+        let cache_init = await JSON.parse(cache_json);
         for (let ckey in cache_init) {
-            // put ImAccess code in here
-            this.cache.set(ckey, new CacheAccess(cache_init[ckey]));
+            // Extract the type and instance correct <T> for CacheAccess
+            // https://stackoverflow.com/questions/35546421/how-to-get-a-variable-type-in-typescript
+            let val = cache_init[ckey];
+            let val_type = typeof val;  // JS type
+            if (typeof val === "number") {
+                this.cache.set(ckey, new Cached<number>(val));
+            }
+            else if (typeof val === "string") {
+                this.cache.set(ckey, new Cached<string>(val));
+            }
+            else {
+                this.cache.set(ckey, new Cached<any>(val));
+            }
+            console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
         }
         
         // Load font
@@ -237,7 +284,10 @@ class NDContext {
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);
-        this.stack.forEach((widget) => { dispatch_render(this, widget);});
+        for (let widget of this.stack) {
+            dispatch_render(this, widget);
+        } 
+        // this.stack.forEach((widget) => { dispatch_render(this, widget);});
     }
     
     push(layout_element:any): void {
