@@ -3,19 +3,13 @@ import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
 
-
-
-// Our state
+// imgui demo state
 let show_demo_window: boolean = false;
 let show_another_window: boolean = false;
 const clear_color: ImGui.Vec4 = new ImGui.Vec4(0.45, 0.55, 0.60, 1.00);
 
 const memory_editor: MemoryEditor = new MemoryEditor();
 memory_editor.Open = false;
-
-let show_sandbox_window: boolean = false;
-let show_gamepad_window: boolean = false;
-let show_movie_window: boolean = false;
 
 /* static */ let f: number = 0.0;
 /* static */ let counter: number = 0;
@@ -59,6 +53,7 @@ function default_render_func(ctx:NDContext, w: Widget): void {
     console.error("${w.rname} unresolved");
 }
 
+
 // This was an Interface. But that meant type info did
 // not persist beyound compile time, causing problems
 // with render methods recovering data from CacheMap.
@@ -69,18 +64,37 @@ interface Widget {
     children?:Widget[];
     // TS index signature so we can use [] as accessor
     [key: string]: undefined | string | RenderFunc | CacheMap | Widget[];
-};
+}
 
 
 class Cached<T> {
-    constructor(public value: T) {}
-    access: ImGui.Access<T> = (value: T = this.value): T => this.value = value;
+    // access: a func that returns the current val if value param not supplied
+    //         else if given a new value it's saved in this.value
+    access: ImGui.Access<T> = (value: T = this.value): T => {
+        if (this.value != value) {
+            this.ctx.notify_server(this, value);
+        }
+        this.value = value;
+        return this.value;
+    }
+    
+    constructor(private ctx:NDContext, public value: T, public cache_key: string = "") { }
 }
 
-function accessor_factory<T>(ctx:NDContext, key: string, initial_value: T): Cached<T> {
-    let value: Cached<T> | undefined = ctx.cache.get(key);
-    if (value === undefined) { ctx.cache.set(key, value = new Cached<T>(initial_value)); }
+function accessor_factory<T>(ctx:NDContext, ckey: string, initial_value: T): Cached<T> {
+    let value: Cached<T> | undefined = ctx.cache.get(ckey);
+    if (value === undefined) {
+        ctx.cache.set(ckey, value = new Cached<T>(ctx, initial_value, ckey));
+    }
     return value;
+}
+
+// Messages sent from GUI to server
+interface DataChange {
+    nd_type:string;
+    old_value:any|null;
+    new_value:any|null;
+    cache_key:string;
 }
 
 
@@ -188,7 +202,7 @@ class NDContext {
     websock: WebSocket|null = null;
     layout: Widget[] = [];          // as served by /api/layout 
     stack: Widget[] = [];           // widgets currently rendering
-    cache: Map<string, Cached<any>> = new Map();    // data from backend
+    cache: Map<string, Cached<any>> = new Map<string,Cached<any>>();    // data from backend
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
             ["Home", render_home],
             ["InputInt", render_input_int],
@@ -204,15 +218,17 @@ class NDContext {
     font: ImGui.Font|null = null;
     io: ImGui.IO|null = null;
     home: any|null = null;          // handle to Home layout
-    // working vars so we can avoid the use of locals
-    // in render funcs
+    // working vars so we can avoid the use of locals in render funcs
     step: number = 1;
     step_fast: number = 1;
     flags: number = 0;
-    
+    data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
+    cache_ref:Cached<any>|undefined;
+        
     
     constructor() {
         this.restore_defaults();
+        this.cache_ref = new Cached<number>(this, 0, "0");
     }
     
     restore_defaults(): void {
@@ -257,13 +273,13 @@ class NDContext {
             let val = cache_init[ckey];
             let val_type = typeof val;  // JS type
             if (typeof val === "number") {
-                this.cache.set(ckey, new Cached<number>(val));
+                this.cache.set(ckey, new Cached<number>(this, val, ckey));
             }
             else if (typeof val === "string") {
-                this.cache.set(ckey, new Cached<string>(val));
+                this.cache.set(ckey, new Cached<string>(this, val, ckey));
             }
             else {
-                this.cache.set(ckey, new Cached<any>(val));
+                this.cache.set(ckey, new Cached<any>(this, val, ckey));
             }
             console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
         }
@@ -290,8 +306,24 @@ class NDContext {
     update(ev: any): void {
         // let data_s:string = this.decoder.decode(value);
         console.log('NDContext.update: ' + ev.data);
-        let data:any = JSON.parse(ev.data);
-        // cache update code here...
+        let msg:any = JSON.parse(ev.data);
+        switch (msg.nd_type) {
+            case "DataChange":
+                this.cache_ref = this.cache.get(msg.cache_key);
+                if (this.cache_ref) {
+                    this.cache_ref.value = msg.new_value;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    
+    notify_server(accessor:Cached<any>, new_val:any): void {
+        this.data_change.old_value = accessor.value;
+        this.data_change.new_value = new_val;
+        this.data_change.cache_key = accessor.cache_key;
+        this.websock!.send(JSON.stringify(this.data_change));
     }
     
     render() {
