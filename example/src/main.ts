@@ -71,14 +71,6 @@ interface Widget {
     [key: string]: undefined | string | RenderFunc | CacheMap | Widget[];
 };
 
-/**
-class Widget {
-    rname:string = "unintialized";
-    rfunc:RenderFunc|null|undefined = null;
-    cspec:CacheMap = new Map();
-    children:Widget[] = [];
-}; */
-
 
 class Cached<T> {
     constructor(public value: T) {}
@@ -93,15 +85,15 @@ function accessor_factory<T>(ctx:NDContext, key: string, initial_value: T): Cach
 
 
 function dispatch_render(ctx:NDContext, w: Widget): void {
-    // Attempt to resolve rname to rfunc
+    // Attempt to resolve rname to rfunc if not initialized
     if (!w.rfunc) {
         w.rfunc = ctx.rfmap.get(w.rname);
     }
     if (w.rfunc) {
-        w.rfunc(ctx, w);
+        w.rfunc(ctx, w);            // invoke render func
+        ctx.restore_defaults();     // restore defaults for next func
     }
     else {
-        console.log('dispatch_render: missing render func: ' + w.rname);
         console.log('dispatch_render: missing render func: ' + w.rname);
     }
 }
@@ -123,10 +115,20 @@ function render_home(ctx:NDContext, w: Widget): void {
 
 
 function render_input_int(ctx:NDContext, w: Widget): void {
+    // ImGui.InputTextFlags.ReadOnly
+    if ("step" in w.cspec) {
+        ctx.step = w.cspec["step" as keyof CacheMap] as number;
+    }
+    if ("step_fast" in w.cspec) {
+        ctx.step_fast = w.cspec["step_fast" as keyof CacheMap] as number;
+    }
+    if ("flags" in w.cspec) {
+        ctx.flags = w.cspec["flags" as keyof CacheMap] as number;
+    }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     let init_val = ctx.cache[cache_name as keyof CacheMap] as number;
     let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
-    ImGui.InputInt(cache_name, cache_accessor.access);
+    ImGui.InputInt(cache_name, cache_accessor.access, ctx.step, ctx.step_fast, ctx.flags);
 }
 
 
@@ -136,6 +138,17 @@ function render_label(ctx:NDContext, w: Widget): void { /**
     let cache_accessor = accessor_factory<string>(ctx, cache_name, init_val);
     ImGui.LabelText(cache_name, cache_accessor.access); */
 }
+
+
+function render_separator(ctx:NDContext, w: Widget): void {
+    ImGui.Separator();
+}
+
+
+function render_same_line(ctx:NDContext, w: Widget): void {
+    ImGui.SameLine();
+}
+
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
@@ -172,43 +185,40 @@ function render_footer(ctx:NDContext, w: Widget): void {
 // Use websocket-ts for websock via "npm install websocket-ts"
 // https://www.npmjs.com/package/websocket-ts
 class NDContext {
-    websock: any;
-    decoder: any;
-    encoder: any;
-    // layout: any;
-    layout: Widget[] = []; // new Array<Widget>();
-    stack: Widget[] = []; // new Array<Widget>();    
-    cache: Map<string, Cached<any>> = new Map();
-    // cache: CacheMap = new CacheMap();
+    websock: WebSocket|null = null;
+    layout: Widget[] = [];          // as served by /api/layout 
+    stack: Widget[] = [];           // widgets currently rendering
+    cache: Map<string, Cached<any>> = new Map();    // data from backend
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
             ["Home", render_home],
             ["InputInt", render_input_int],
-            ["Label", render_label]
-        ]);      // widget constructors
-
-    data_type_u8: Uint8Array;     // was used by InputScalar for RV
+            ["Label", render_label],
+            ["Separator", render_separator],
+            ["Footer", render_footer],
+            ["SameLine", render_same_line],
+        ]);      // render functions
     // consts
-    update_interval: number;
-    init_interval: number;
+    update_interval: number = 50;
+    init_interval: number = 1000;
     // fonts
     font: ImGui.Font|null = null;
     io: ImGui.IO|null = null;
     home: any|null = null;          // handle to Home layout
+    // working vars so we can avoid the use of locals
+    // in render funcs
+    step: number = 1;
+    step_fast: number = 1;
+    flags: number = 0;
     
     
     constructor() {
-        this.websock = null;
-        this.data_type_u8 = new Uint8Array([255]);
-        this.decoder = new TextDecoder('utf-8');
-        this.encoder = new TextEncoder();
-        this.update_interval = 50;
-        this.init_interval = 1000;
-        // stuff that will be supplied later
-        this.font = null;
-        // this.layout = null;
-        // this.stack = [];
-        // this.cache = new Map<string, any>();
-        // this.wctor = 
+        this.restore_defaults();
+    }
+    
+    restore_defaults(): void {
+        this.step = 1;
+        this.step_fast = 1;
+        this.flags = 0;
     }
 
     async load_font_ttf(url: string, size_pixels: number, font_cfg: ImGui.FontConfig | null = null, glyph_ranges: number | null = null): Promise<ImGui.Font> {
@@ -291,7 +301,6 @@ class NDContext {
         for (let widget of this.stack) {
             dispatch_render(this, widget);
         } 
-        // this.stack.forEach((widget) => { dispatch_render(this, widget);});
     }
     
     push(layout_element:any): void {
