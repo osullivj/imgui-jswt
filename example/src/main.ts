@@ -102,6 +102,7 @@ function dispatch_render(ctx:NDContext, w: Widget): void {
     }
     else {
         console.log('dispatch_render: missing render func: ' + w.rname);
+        console.log('dispatch_render: missing render func: ' + w.rname);
     }
 }
 
@@ -129,8 +130,11 @@ function render_input_int(ctx:NDContext, w: Widget): void {
 }
 
 
-function render_label(ctx:NDContext, w: Widget): void {
-
+function render_label(ctx:NDContext, w: Widget): void { /**
+    let cache_name = w.cspec["cname" as keyof CacheMap] as string;
+    let init_val = ctx.cache[cache_name as keyof CacheMap] as string;
+    let cache_accessor = accessor_factory<string>(ctx, cache_name, init_val);
+    ImGui.LabelText(cache_name, cache_accessor.access); */
 }
 
 // main GUI footer
