@@ -47,6 +47,9 @@ interface CacheArray extends Array<CacheValue> {}
 type CacheMap = Map<string,CacheValue>;
 type CacheMapEntry = {[key: string]: CacheValue};
 
+
+
+
 // for parsing /api/layout
 type RenderFunc = (ctx:NDContext, w:Widget) => void;
 function default_render_func(ctx:NDContext, w: Widget): void {
@@ -81,10 +84,32 @@ class Cached<T> {
     constructor(private ctx:NDContext, public value: T, public cache_key: string = "") { }
 }
 
-function accessor_factory<T>(ctx:NDContext, ckey: string, initial_value: T): Cached<T> {
+// type decl for Map<string,Cached<any>> to ease the
+// use of [... as keyof ...] 
+type CachedAnyMap = Map<string,Cached<any>>;
+
+// Note init_val?:T which allows us to invoke without
+// an init_val when we are doing a "get" rather than a 
+// set.
+function cache_access<T>(ctx:NDContext, ckey: string, init_val?: T): Cached<T> {
     let value: Cached<T> | undefined = ctx.cache.get(ckey);
     if (value === undefined) {
-        ctx.cache.set(ckey, value = new Cached<T>(ctx, initial_value, ckey));
+        // There's no cached val...
+        if (init_val !== undefined) {
+            // Initial value has been provided eg we have been
+            // called with an initial value, so we are at
+            // creation time for this cache entry
+            ctx.cache.set(ckey, value = new Cached<T>(ctx, init_val, ckey));
+        }
+        else {
+            // No init_value provided, so this must be a "get"
+            // not a "set". And we don't have a cache value.
+            // So error, and throw an exception as we cannot
+            // return a Cached<T>...
+            const error_message = "cache_access<T>: no cached val for " + ckey;
+            console.log(error_message);
+            throw error_message;
+        }
     }
     return value;
 }
@@ -121,7 +146,7 @@ function render_container(ctx:NDContext, widget: Widget): void {
 function render_home(ctx:NDContext, w: Widget): void {
     // as keyof CacheMap clause here is critical
     // as w.cspec["title"] will not compile...
-    var title = w.cspec["title" as keyof CacheMap] as string;
+    let title = w.cspec["title" as keyof CacheMap] as string;
     ImGui.Begin(title ? title : "nodom");
     render_container(ctx, w);
     ImGui.End();
@@ -140,9 +165,10 @@ function render_input_int(ctx:NDContext, w: Widget): void {
         ctx.flags = w.cspec["flags" as keyof CacheMap] as number;
     }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
-    let init_val = ctx.cache[cache_name as keyof CacheMap] as number;
-    let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
-    ImGui.InputInt(cache_name, cache_accessor.access, ctx.step, ctx.step_fast, ctx.flags);
+    // let init_val = ctx.cache[cache_name as keyof CacheMap] as number;
+    // let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
+    const accessor = cache_access<number>(ctx, cache_name);
+    ImGui.InputInt(cache_name, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
 }
 
 
@@ -199,10 +225,14 @@ function render_footer(ctx:NDContext, w: Widget): void {
 // Use websocket-ts for websock via "npm install websocket-ts"
 // https://www.npmjs.com/package/websocket-ts
 class NDContext {
-    websock: WebSocket|null = null;
-    layout: Widget[] = [];          // as served by /api/layout 
-    stack: Widget[] = [];           // widgets currently rendering
-    cache: Map<string, Cached<any>> = new Map<string,Cached<any>>();    // data from backend
+    websock: WebSocket|null = null;             // Backe end connection
+    layout: Widget[] = [];                      // as served by /api/layout 
+    stack: Widget[] = [];                       // widgets currently rendering
+    
+    // data from backend
+    cache: CachedAnyMap = new Map<string,Cached<any>>();   
+    
+    // Map of render functions reffed in layouts
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
             ["Home", render_home],
             ["InputInt", render_input_int],
@@ -211,6 +241,7 @@ class NDContext {
             ["Footer", render_footer],
             ["SameLine", render_same_line],
         ]);      // render functions
+        
     // consts
     update_interval: number = 50;
     init_interval: number = 1000;
@@ -307,11 +338,21 @@ class NDContext {
         // let data_s:string = this.decoder.decode(value);
         console.log('NDContext.update: ' + ev.data);
         let msg:any = JSON.parse(ev.data);
+        let cache:CachedAnyMap = this.cache;
         switch (msg.nd_type) {
             case "DataChange":
-                this.cache_ref = this.cache.get(msg.cache_key);
-                if (this.cache_ref) {
-                    this.cache_ref.value = msg.new_value;
+                // TODO: add check on new_value and
+                // old_value to spot type changes
+                if (typeof msg.new_value === "number") {
+                    const accessor = cache_access<number>(this, msg.cache_key);
+                    accessor.value = msg.new_value;
+                }
+                else if (typeof msg.new_value === "string") {
+                    const accessor = cache_access<string>(this, msg.cache_key);
+                    accessor.value = msg.new_value;
+                }
+                else {
+                    // TODO: non atomic updates
                 }
                 break;
             default:
