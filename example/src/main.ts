@@ -335,20 +335,21 @@ class NDContext {
     }
     
     update(ev: any): void {
-        // let data_s:string = this.decoder.decode(value);
+        // NB we're in a websock callback here, so "this" is not
+        // the NDContext equivalent, it's the websock
         console.log('NDContext.update: ' + ev.data);
         let msg:any = JSON.parse(ev.data);
-        let cache:CachedAnyMap = this.cache;
+        let cache:CachedAnyMap = _nd_ctx.cache;
         switch (msg.nd_type) {
             case "DataChange":
                 // TODO: add check on new_value and
                 // old_value to spot type changes
                 if (typeof msg.new_value === "number") {
-                    const accessor = cache_access<number>(this, msg.cache_key);
+                    const accessor = cache_access<number>(_nd_ctx, msg.cache_key);
                     accessor.value = msg.new_value;
                 }
                 else if (typeof msg.new_value === "string") {
-                    const accessor = cache_access<string>(this, msg.cache_key);
+                    const accessor = cache_access<string>(_nd_ctx, msg.cache_key);
                     accessor.value = msg.new_value;
                 }
                 else {
