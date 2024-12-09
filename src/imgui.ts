@@ -4551,3 +4551,10 @@ export function SetAllocatorFunctions(alloc_func: (sz: number, user_data: any) =
 }
 export function MemAlloc(sz: number): void { bind.MemAlloc(sz); }
 export function MemFree(ptr: any): void { bind.MemFree(ptr); }
+
+export function DatePicker(label: string, v: Bind.ImAccess<number> | Bind.ImScalar<number> | XY | XYZ | XYZW | Bind.ImTuple2<number> | Bind.ImTuple3<number> | Bind.ImTuple4<number>): boolean {
+    const _v = import_Scalar(v);
+    const ret = bind.DatePicker(label, _v);
+    export_Scalar(_v, v);
+    return ret;
+}

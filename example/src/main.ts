@@ -220,6 +220,13 @@ function render_footer(ctx:NDContext, w: Widget): void {
 }   
 
 
+function render_date_picker(ctx:NDContext, w: Widget): void {
+    let cache_name = w.cspec["cname" as keyof CacheMap] as string;
+    // NB the number will be a 
+    const accessor = cache_access<number>(ctx, cache_name);
+    ImGui.DatePicker(cache_name, accessor.access);
+}
+
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
 // Use websocket-ts for websock via "npm install websocket-ts"
@@ -240,6 +247,7 @@ class NDContext {
             ["Separator", render_separator],
             ["Footer", render_footer],
             ["SameLine", render_same_line],
+            ["DatePicker", render_date_picker],
         ]);      // render functions
         
     // consts

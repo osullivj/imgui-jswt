@@ -56,6 +56,10 @@ FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
 
 BIND_FLAGS += -s NO_FILESYSTEM=1
 BIND_FLAGS += -s WASM=0
+
+
+# https://github.com/emscripten-core/emscripten/issues/12074
+#    MODULARIZE mode makes Emscripten output a factory function
 BIND_FLAGS += -s MODULARIZE=1
 # BIND_FLAGS += -s EXPORT_NAME=\"ImGui\"
 BIND_FLAGS += -s EXPORT_BINDINGS=1
@@ -114,7 +118,7 @@ example/build/imgui_widgets.o: imgui/imgui_widgets.cpp
 	emcc $(FLAGS) -I $(IMGUI_PATH) -c $< -o $@
 
 example/build/ImGuiDatePicker.o: datepicker/ImGuiDatePicker.cpp
-	emcc $(FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
+	emcc $(FLAGS)  -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
 
 # explicit list of objects
 IMGUI_OBJECTS=example/build/imgui.o example/build/imgui_draw.o 
@@ -137,7 +141,7 @@ build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX) $(IMGUI_OBJECTS)
 
 build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(DPGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
 	"mkdir" -p build
-	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $(IMGUI_OBJECTS) $(BIND_IMGUI_OUTPUT_O) -o $@
+	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -sEXPORTED_FUNCTIONS=DatePicker --bind $(IMGUI_OBJECTS) $(BIND_IMGUI_OUTPUT_O) -o $@
 #	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
 #	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $(BIND_IMGUI_OUTPUT_O) -o $@
 

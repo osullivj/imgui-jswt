@@ -2060,4 +2060,6 @@ export interface Module extends Emscripten.EmscriptenModule {
     SetAllocatorFunctions(alloc_func: (sz: number, user_data: any) => number, free_func: (ptr: number, user_data: any) => void, user_data: any): void;
     MemAlloc(sz: number): any;
     MemFree(ptr: any): void;
+    
+    DatePicker(label: string, v: ImScalar<number>): boolean;
 }

@@ -4581,6 +4581,13 @@
     function MemAlloc(sz) { exports.bind.MemAlloc(sz); }
     function MemFree(ptr) { exports.bind.MemFree(ptr); }
 
+    function DatePicker(label, v) {
+        const _v = import_Scalar(v);
+        const ret = exports.bind.DatePicker(label, _v);
+        export_Scalar(_v, v);
+        return ret;
+    }
+
     exports.ARRAYSIZE = IM_ARRAYSIZE;
     exports.ASSERT = ASSERT;
     exports.AcceptDragDropPayload = AcceptDragDropPayload;
