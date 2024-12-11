@@ -1,5 +1,3 @@
-# grep -o "STATIC(\"\w*\"" imgui_demo.ts | sort | uniq -d
-
 all: start-example-node
 
 start: start-example-html
@@ -40,29 +38,33 @@ BIND_IMGUI_OUTPUT_JS = build/bind-imgui.js
 # special target for link line...
 DATE_IMGUI_OUTPUT_O = example/build/ImGuiDatePicker.o
 
-# debug flags
-# FLAGS += -g4
-# FLAGS += -O0
-# FLAGS += --source-map-base http://127.0.0.1:8080/
-# FLAGS += -s ASSERTIONS=1
-# FLAGS += -s SAFE_HEAP=1
-
-FLAGS += -Os
-
+# compile debug flags
+# NB g4 now deprecated
+FLAGS += -g3
+# no optimization
+FLAGS += -O0
+# optimize for space
+# FLAGS += -Os
+FLAGS += --source-map-base http://127.0.0.1:8080/
+# imgui pre proc defns
 FLAGS += -D "IM_ASSERT(EXPR)=((void)(EXPR))"
-
 FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
 
+# embind/link flgas
 BIND_FLAGS += -s NO_FILESYSTEM=1
 BIND_FLAGS += -s WASM=0
-
+# bind debug flags: -gsource_map replaces the deprecated g4
+BIND_FLAGS += -gsource_map
+# these two were in compile FLAGS; clang warns they're link flags
+BIND_FLAGS += -s ASSERTIONS=1
+BIND_FLAGS += -s SAFE_HEAP=1
 
 # https://github.com/emscripten-core/emscripten/issues/12074
 #    MODULARIZE mode makes Emscripten output a factory function
 BIND_FLAGS += -s MODULARIZE=1
 # BIND_FLAGS += -s EXPORT_NAME=\"ImGui\"
-BIND_FLAGS += -s EXPORT_BINDINGS=1
+# BIND_FLAGS += -s EXPORT_BINDINGS=1
 # BIND_FLAGS += -s EXPORT_ALL=1
 # BIND_FLAGS += -s MEM_INIT_METHOD=0
 # BIND_FLAGS += --memory-init-file 0
@@ -141,7 +143,7 @@ build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX) $(IMGUI_OBJECTS)
 
 build/bind-imgui.js: $(IMGUI_OUTPUT_O) $(DPGUI_OUTPUT_O) $(BIND_IMGUI_OUTPUT_O)
 	"mkdir" -p build
-	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -sEXPORTED_FUNCTIONS=DatePicker --bind $(IMGUI_OBJECTS) $(BIND_IMGUI_OUTPUT_O) -o $@
+	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) --bind $(IMGUI_OBJECTS) $(BIND_IMGUI_OUTPUT_O) -o $@
 #	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $^ -o $@
 #	emcc $(FLAGS) $(BIND_FLAGS) -I $(IMGUI_PATH) --bind $(BIND_IMGUI_OUTPUT_O) -o $@
 
