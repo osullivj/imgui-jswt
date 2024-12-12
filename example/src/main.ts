@@ -223,8 +223,8 @@ function render_footer(ctx:NDContext, w: Widget): void {
 function render_date_picker(ctx:NDContext, w: Widget): void {
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     // NB the number will be a 
-    const accessor = cache_access<number>(ctx, cache_name);
-    ImGui.DatePicker(cache_name, accessor.access);
+    const accessor = cache_access<ImGui.Tuple3<number>>(ctx, cache_name);
+    ImGui.DatePicker(cache_name, accessor.value);
 }
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
