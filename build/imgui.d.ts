@@ -1643,3 +1643,4 @@ export declare function DebugCheckVersionAndDataLayout(version_str: string, sz_i
 export declare function SetAllocatorFunctions(alloc_func: (sz: number, user_data: any) => number, free_func: (ptr: number, user_data: any) => void, user_data?: any): void;
 export declare function MemAlloc(sz: number): void;
 export declare function MemFree(ptr: any): void;
+export declare function DatePicker(label: string, v: Bind.ImAccess<number>): boolean;
