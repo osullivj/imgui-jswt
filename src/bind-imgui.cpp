@@ -3024,11 +3024,6 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     
     // https://github.com/DnA-IntRicate/ImGuiDatePicker
     emscripten::function("DatePicker", FUNCTION(bool, (std::string label, emscripten::val t), {
-        auto time_vec = access_value<int, 3>(t);    // array of 3 ints
-        tm time_obj = {0, 0, 0, 0, 0, 0, 0, 0, 0};  // struct tm has 9 ints
-        time_obj.tm_year = time_vec[0];
-        time_obj.tm_mon = time_vec[1];
-        time_obj.tm_mday = time_vec[2];
-        return ImGui::DatePicker(label, time_obj);
+        return ImGui::DatePicker(label.c_str(), access_value<int, 3>(t));
     }));
 }

@@ -222,7 +222,7 @@ function render_footer(ctx:NDContext, w: Widget): void {
 
 function render_date_picker(ctx:NDContext, w: Widget): void {
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
-    // NB the number will be a 
+    // NB the use of accessor.value, not .access! 
     const accessor = cache_access<ImGui.Tuple3<number>>(ctx, cache_name);
     ImGui.DatePicker(cache_name, accessor.value);
 }
