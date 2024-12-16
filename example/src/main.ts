@@ -221,10 +221,14 @@ function render_footer(ctx:NDContext, w: Widget): void {
 
 
 function render_date_picker(ctx:NDContext, w: Widget): void {
+    if ("clamp" in w.cspec) {
+        // Coerce type narrowing to bool via unknown
+        ctx.clamp = w.cspec["clamp" as keyof CacheMap] as unknown as boolean;
+    }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     // NB the use of accessor.value, not .access! 
     const accessor = cache_access<ImGui.Tuple3<number>>(ctx, cache_name);
-    ImGui.DatePicker(cache_name, accessor.value);
+    ImGui.DatePicker(cache_name, accessor.value, ctx.clamp);
 }
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
@@ -261,6 +265,7 @@ class NDContext {
     step: number = 1;
     step_fast: number = 1;
     flags: number = 0;
+    clamp: boolean = false;
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
         

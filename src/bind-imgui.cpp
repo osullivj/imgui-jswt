@@ -3023,7 +3023,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("MemFree", FUNCTION(void, (emscripten::val ptr), { void* _ptr = ptr.as<void*>(emscripten::allow_raw_pointers()); ImGui::MemFree(_ptr); }));
     
     // https://github.com/DnA-IntRicate/ImGuiDatePicker
-    emscripten::function("DatePicker", FUNCTION(bool, (std::string label, emscripten::val t), {
-        return ImGui::DatePicker(label.c_str(), access_value<int, 3>(t));
+    emscripten::function("DatePicker", FUNCTION(bool, (std::string label, emscripten::val ymd, bool clamp), {
+        return ImGui::DatePicker(label.c_str(), access_value<int, 3>(ymd), clamp);
     }));
 }
