@@ -165,8 +165,6 @@ function render_input_int(ctx:NDContext, w: Widget): void {
         ctx.flags = w.cspec["flags" as keyof CacheMap] as number;
     }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
-    // let init_val = ctx.cache[cache_name as keyof CacheMap] as number;
-    // let cache_accessor = accessor_factory<number>(ctx, cache_name, init_val);
     const accessor = cache_access<number>(ctx, cache_name);
     ImGui.InputInt(cache_name, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
 }
