@@ -45,7 +45,8 @@ FLAGS += -g3
 FLAGS += -O0
 # optimize for space
 # FLAGS += -Os
-FLAGS += --source-map-base http://127.0.0.1:8080/
+# source-map-base is an NPM thing; clang deprecates
+# FLAGS += --source-map-base http://127.0.0.1:8080/
 # imgui pre proc defns
 FLAGS += -D "IM_ASSERT(EXPR)=((void)(EXPR))"
 FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
