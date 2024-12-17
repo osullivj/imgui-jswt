@@ -154,7 +154,7 @@ function render_home(ctx:NDContext, w: Widget): void {
 
 
 function render_input_int(ctx:NDContext, w: Widget): void {
-    // ImGui.InputTextFlags.ReadOnly
+
     if ("step" in w.cspec) {
         ctx.step = w.cspec["step" as keyof CacheMap] as number;
     }
@@ -162,6 +162,7 @@ function render_input_int(ctx:NDContext, w: Widget): void {
         ctx.step_fast = w.cspec["step_fast" as keyof CacheMap] as number;
     }
     if ("flags" in w.cspec) {
+        // See src/imgui.ts:InputTextFlags
         ctx.flags = w.cspec["flags" as keyof CacheMap] as number;
     }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
@@ -223,10 +224,20 @@ function render_date_picker(ctx:NDContext, w: Widget): void {
         // Coerce type narrowing to bool via unknown
         ctx.clamp = w.cspec["clamp" as keyof CacheMap] as unknown as boolean;
     }
+    if ("table_flags" in w.cspec) {
+        // See src/imgui.ts:TableFlags
+        ctx.flags = w.cspec["table_flags" as keyof CacheMap] as number;
+    }
+    else {
+        // Explicit defaulting of table_flags to match original datepicker 
+        // behaviour, otherwise we get restore_defaults() value
+        ctx.flags = ImGui.TableFlags.BordersOuter | ImGui.TableFlags.SizingFixedFit |
+                ImGui.TableFlags.NoHostExtendX | ImGui.TableFlags.NoHostExtendY;
+    }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     // NB the use of accessor.value, not .access! 
     const accessor = cache_access<ImGui.Tuple3<number>>(ctx, cache_name);
-    ImGui.DatePicker(cache_name, accessor.value, ctx.clamp);
+    ImGui.DatePicker(cache_name, accessor.value, ctx.clamp, ctx.flags);
 }
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
