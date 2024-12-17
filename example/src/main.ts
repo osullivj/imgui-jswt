@@ -334,6 +334,7 @@ class NDContext {
         this.websock.onclose = this.on_close;
         this.websock.onmessage = this.update;
         // HTTP GET to fetch layout description in JSON
+        // TODO: fetch error handler that can raise a modal...
         const layout_response = await window.fetch(layout_url);
         const layout_json = await layout_response.text();
         console.log('NDContext.init: ' + layout_json);
