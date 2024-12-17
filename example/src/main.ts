@@ -75,7 +75,7 @@ class Cached<T> {
     //         else if given a new value it's saved in this.value
     access: ImGui.Access<T> = (value: T = this.value): T => {
         if (this.value != value) {
-            this.ctx.notify_server(this, value);
+            this.ctx.notify_server_atomic(this, value);
         }
         this.value = value;
         return this.value;
@@ -154,7 +154,6 @@ function render_home(ctx:NDContext, w: Widget): void {
 
 
 function render_input_int(ctx:NDContext, w: Widget): void {
-
     if ("step" in w.cspec) {
         ctx.step = w.cspec["step" as keyof CacheMap] as number;
     }
@@ -167,6 +166,8 @@ function render_input_int(ctx:NDContext, w: Widget): void {
     }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     const accessor = cache_access<number>(ctx, cache_name);
+    // NB when InputInt invokes accessor.access(new_int_val) to set the int in the cache
+    // accessor.access() will invoke ctx.notify_server()
     ImGui.InputInt(cache_name, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
 }
 
@@ -234,10 +235,30 @@ function render_date_picker(ctx:NDContext, w: Widget): void {
         ctx.flags = ImGui.TableFlags.BordersOuter | ImGui.TableFlags.SizingFixedFit |
                 ImGui.TableFlags.NoHostExtendX | ImGui.TableFlags.NoHostExtendY;
     }
+
+    if ("table_size" in w.cspec) {
+        // See src/imgui.ts:TableFlags
+        ctx.anyw = w.cspec["table_size" as keyof CacheMap] as any;
+    }
+    else {
+        // Original datepicker hardwired consts
+        ctx.anyw = [274.5,301.5];
+    }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
-    // NB the use of accessor.value, not .access! 
+    // NB the use of accessor.value, not .access, since the underlying val is
+    // an array. Bear in mind that in C++land an int[] is int*.
     const accessor = cache_access<ImGui.Tuple3<number>>(ctx, cache_name);
-    ImGui.DatePicker(cache_name, accessor.value, ctx.clamp, ctx.flags);
+    // Store the old val as DatePicker will overwrite the cached val
+    // Unrolled loop copy...
+    ctx.num_tuple3[0] = accessor.value[0];
+    ctx.num_tuple3[1] = accessor.value[1];
+    ctx.num_tuple3[2] = accessor.value[2];
+    // Since we've passed in accessor.value rather than .access, we have
+    // to check the bool ret val to see if the date has changed...
+    if (ImGui.DatePicker(cache_name, accessor.value, ctx.anyw, ctx.clamp, ctx.flags)) {
+        ctx.notify_server_any(accessor, ctx.num_tuple3);
+        console.log('render_date_picker: ' + accessor.value);
+    }
 }
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
@@ -275,6 +296,8 @@ class NDContext {
     step_fast: number = 1;
     flags: number = 0;
     clamp: boolean = false;
+    anyw: any | null = null;
+    num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
         
@@ -358,7 +381,7 @@ class NDContext {
     
     update(ev: any): void {
         // NB we're in a websock callback here, so "this" is not
-        // the NDContext equivalent, it's the websock
+        // the NDContext instance, it's the websock
         console.log('NDContext.update: ' + ev.data);
         let msg:any = JSON.parse(ev.data);
         let cache:CachedAnyMap = _nd_ctx.cache;
@@ -382,14 +405,21 @@ class NDContext {
                 break;
         }
     }
-    
-    notify_server(accessor:Cached<any>, new_val:any): void {
+
+    notify_server_atomic(accessor:Cached<any>, new_val:any): void {
         this.data_change.old_value = accessor.value;
         this.data_change.new_value = new_val;
         this.data_change.cache_key = accessor.cache_key;
         this.websock!.send(JSON.stringify(this.data_change));
     }
-    
+
+    notify_server_any(accessor:Cached<any>, old_val:any): void {
+        this.data_change.new_value = accessor.value;
+        this.data_change.old_value = old_val;
+        this.data_change.cache_key = accessor.cache_key;
+        this.websock!.send(JSON.stringify(this.data_change));
+    }
+
     render() {
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome

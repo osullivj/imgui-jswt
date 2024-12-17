@@ -4552,9 +4552,10 @@ export function SetAllocatorFunctions(alloc_func: (sz: number, user_data: any) =
 export function MemAlloc(sz: number): void { bind.MemAlloc(sz); }
 export function MemFree(ptr: any): void { bind.MemFree(ptr); }
 
-export function DatePicker(label: string, v: Bind.ImTuple3<number>, clamp: boolean, flags: ImGuiTableFlags = 0 ): boolean {
-    const _v = import_Vector3(v);
-    const ret = bind.DatePicker(label, _v, clamp, flags);
-    export_Vector3(_v, v);
+export function DatePicker(label: string, ymd: Bind.ImTuple3<number>, table_size: Bind.ImTuple2<number>, clamp: boolean, flags: ImGuiTableFlags = 0 ): boolean {
+    const _ymd = import_Vector3(ymd);
+    const _table_size = import_Vector2(table_size);
+    const ret = bind.DatePicker(label, _ymd, _table_size, clamp, flags);
+    export_Vector3(_ymd, ymd);
     return ret;
 }

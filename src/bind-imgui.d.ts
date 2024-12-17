@@ -2061,5 +2061,5 @@ export interface Module extends Emscripten.EmscriptenModule {
     MemAlloc(sz: number): any;
     MemFree(ptr: any): void;
     
-    DatePicker(label: string, v: ImTuple3<number>, clamp:boolean, flags: ImGuiTableFlags): boolean;
+    DatePicker(label: string, v: ImTuple3<number>, tsz: ImTuple2<number>, clamp:boolean, flags: ImGuiTableFlags): boolean;
 }
