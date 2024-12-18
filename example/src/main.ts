@@ -2,6 +2,7 @@ import * as ImGui from "imgui-js";
 import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
+import { useDuckDb } from "duckdb-wasm-kit";
 
 // imgui demo state
 let show_demo_window: boolean = false;

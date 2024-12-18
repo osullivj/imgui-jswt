@@ -7,8 +7,10 @@
     "declaration": true,
     "outDir": "build",
     "baseUrl": ".",
+    "moduleResolution":"node",
     "paths": {
-      "imgui-js": [ "../build/imgui" ]
+      "imgui-js": [ "../build/imgui" ],
+      "bind-imgui": [ "../build/bind-imgui" ]
     }
   },
   "files": [
