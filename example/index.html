@@ -1,14 +1,37 @@
 <html>
-  <head>
-    <title>Dear ImGui JavaScript+WebGL example</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script type="text/javascript" src="../node_modules/@flyover/system/build/system.js"></script>
-    <!-- script type="text/javascript" src="https://cdn.jsdelivr.net/gh/flyover/system.ts/build/system.js"> --></script>
-    <script type="text/javascript" src="system.config.js"></script>
-    <script type="text/javascript">
-    System.import("main")
-    .then(function (main) { main.default(); })
-    .catch(console.error);
-    </script>
-  </head>
+    <head>
+        <title>NoDOM</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script type="text/javascript" src="../node_modules/@flyover/system/build/system.js"></script>
+        <!-- script type="text/javascript" src="https://cdn.jsdelivr.net/gh/flyover/system.ts/build/system.js"> --></script>
+        <script type="text/javascript" src="system.config.js"></script>
+
+        <!-- rm for quicker page loads if not using DuckDB in your app -->
+        <script type="module">
+            import * as duck_db from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
+            const JSDELIVR_BUNDLES = duck_db.getJsDelivrBundles();
+            const bundle = await duck_db.selectBundle(JSDELIVR_BUNDLES);
+            // creates storage and an address for the main worker
+            const worker_url = URL.createObjectURL(
+                    new Blob([`importScripts("${bundle.mainWorker}");`], {type: "text/javascript",}));
+            const worker = new Worker(worker_url);
+            const logger = new duck_db.ConsoleLogger();
+            let db = new duck_db.AsyncDuckDB(logger, worker);
+            // loads the web assembly module into memory and configures it
+            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+            // revoke the object url now no longer needed
+            URL.revokeObjectURL(worker_url);
+            let conn = await db.connect();
+            window.__nodom__ = {duck_db:db, duck_conn:conn};
+            console.log("index.html: DuckDB instantiated ", worker_url);
+        </script>
+
+        <!-- the main point of entry for NoDOM -->
+        <script type="text/javascript">
+            System.import("main").then( 
+                function (main) { main.default(); }
+            ).catch(console.error);
+        </script>
+    </head>
+    <!-- NoBODY cos NoDOM -->
 </html>

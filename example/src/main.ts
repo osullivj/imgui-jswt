@@ -2,7 +2,6 @@ import * as ImGui from "imgui-js";
 import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
-import { useDuckDb } from "duckdb-wasm-kit";
 
 // imgui demo state
 let show_demo_window: boolean = false;
@@ -22,6 +21,7 @@ async function LoadArrayBuffer(url: string): Promise<ArrayBuffer> {
     return response.arrayBuffer();
 }
 
+// index.html gets hold of this entry point func with System.import("main")
 export default async function main(): Promise<void> {
     await ImGui.default();
     if (typeof(window) !== "undefined") {
@@ -37,7 +37,6 @@ export default async function main(): Promise<void> {
 }
 
 
-
 // An initial cache value supplied by /api/cache
 // Here we permit nesting via array and obj, but no classes
 type CacheValue = string | number | boolean | CacheObject | CacheArray;
@@ -49,8 +48,6 @@ type CacheMap = Map<string,CacheValue>;
 type CacheMapEntry = {[key: string]: CacheValue};
 
 
-
-
 // for parsing /api/layout
 type RenderFunc = (ctx:NDContext, w:Widget) => void;
 function default_render_func(ctx:NDContext, w: Widget): void {
@@ -58,9 +55,7 @@ function default_render_func(ctx:NDContext, w: Widget): void {
 }
 
 
-// This was an Interface. But that meant type info did
-// not persist beyound compile time, causing problems
-// with render methods recovering data from CacheMap.
+// Used for ingesting layout JSON
 interface Widget {
     rname:string;
     rfunc?:RenderFunc;
@@ -270,7 +265,9 @@ class NDContext {
     websock: WebSocket|null = null;             // Backe end connection
     layout: Widget[] = [];                      // as served by /api/layout 
     stack: Widget[] = [];                       // widgets currently rendering
-    
+  
+    // config from backend
+    config: CachedAnyMap = new Map<string,Cached<any>>();   
     // data from backend
     cache: CachedAnyMap = new Map<string,Cached<any>>();   
     
@@ -301,6 +298,8 @@ class NDContext {
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
+    // will only become !== null if we have an "import <duckDBwasm>" in the module JS
+    duck_db:any|null = null;
         
     
     constructor() {
@@ -327,6 +326,7 @@ class NDContext {
         
         // Some standard URLs recognised on the server side
         let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
+        let config_url = "http://" + window.location.hostname + ":8090/api/config";        
         let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
         let cache_url = "http://" + window.location.hostname + ":8090/api/cache";        
         // Initialize WebSocket with buffering and 1s reconnection delay        
@@ -334,12 +334,27 @@ class NDContext {
         this.websock.onopen = this.on_open;
         this.websock.onclose = this.on_close;
         this.websock.onmessage = this.update;
-        // HTTP GET to fetch layout description in JSON
-        // TODO: fetch error handler that can raise a modal...
-        const layout_response = await window.fetch(layout_url);
-        const layout_json = await layout_response.text();
-        console.log('NDContext.init: ' + layout_json);
-        this.layout = JSON.parse(layout_json) as Array<Widget>;
+        // Pull cache init from server
+        const config_response = await window.fetch(config_url);
+        const config_json = await config_response.text();
+        console.log('NDContext.init: ' + config_json);
+        let config_init = await JSON.parse(config_json);
+        for (let ckey in config_init) {
+            // Extract the type and instance correct <T> for CacheAccess
+            // https://stackoverflow.com/questions/35546421/how-to-get-a-variable-type-in-typescript
+            let val = config_init[ckey];
+            let val_type = typeof val;  // JS type
+            if (typeof val === "number") {
+                this.config.set(ckey, new Cached<number>(this, val, ckey));
+            }
+            else if (typeof val === "string") {
+                this.config.set(ckey, new Cached<string>(this, val, ckey));
+            }
+            else {
+                this.config.set(ckey, new Cached<any>(this, val, ckey));
+            }
+            console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
+        }
         // Pull cache init from server
         const cache_response = await window.fetch(cache_url);
         const cache_json = await cache_response.text();
@@ -361,10 +376,20 @@ class NDContext {
             }
             console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
         }
-        
-        // Load font
+        // HTTP GET to fetch layout description in JSON
+        // TODO: fetch error handler that can raise a modal...
+        const layout_response = await window.fetch(layout_url);
+        const layout_json = await layout_response.text();
+        console.log('NDContext.init: ' + layout_json);
+        this.layout = JSON.parse(layout_json) as Array<Widget>;
+        // Load font: TODO module JS script font config
+        console.log('NDContext.init: loading fonts');
         this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
         ImGui.ASSERT(this.font !== null);
+
+        // Contingent DDBW init
+        // let init_duck_db:any = this.config.get("duck_db")?.value || false;
+        this.duck_db = (window as any)?.__nodom__?.duck_db || null;
 
         // Finally, tee up the first element in layout to render: home
         this.stack.push(this.layout[0]);
@@ -423,6 +448,14 @@ class NDContext {
     }
 
     render() {
+        // TODO: we cannot do an async DB call here!
+        // how can we pass work between threads so we 
+        // can put async DB on another thread?
+        let wany:any = window as any;
+        let nodom = wany?.__nodom__;
+        if ( nodom) {
+            console.log("render: duck_db", nodom);
+        }
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);
