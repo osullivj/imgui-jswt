@@ -122,6 +122,9 @@ example/build/imgui_widgets.o: imgui/imgui_widgets.cpp
 
 example/build/ImGuiDatePicker.o: datepicker/ImGuiDatePicker.cpp
 	emcc $(FLAGS)  -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
+    
+
+
 
 # explicit list of objects
 IMGUI_OBJECTS=example/build/imgui.o example/build/imgui_draw.o 
@@ -135,6 +138,11 @@ build/emscripten.d.ts: src/emscripten.d.ts
 
 build/bind-imgui.d.ts: src/bind-imgui.d.ts
 	"mkdir" -p build
+	"cp" -fv $< $@
+    
+# explicit target to copy duck_handler
+example/build/duck_handler.js: example/src/duck_handler.js
+	"mkdir" -p example/build
 	"cp" -fv $< $@
 
 build/bind-imgui.o: src/bind-imgui.cpp $(IMGUI_SOURCE_HXX) $(IMGUI_OBJECTS)

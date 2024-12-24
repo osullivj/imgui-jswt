@@ -298,8 +298,9 @@ class NDContext {
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
-    // will only become !== null if we have an "import <duckDBwasm>" in the module JS
-    duck_db:any|null = null;
+    // will only become !== null if we have module JS for Duc
+    // instantiation in index.html
+    duck_handler:any|null = null;
         
     
     constructor() {
@@ -387,9 +388,7 @@ class NDContext {
         this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
         ImGui.ASSERT(this.font !== null);
 
-        // Contingent DDBW init
-        // let init_duck_db:any = this.config.get("duck_db")?.value || false;
-        this.duck_db = (window as any)?.__nodom__?.duck_db || null;
+
 
         // Finally, tee up the first element in layout to render: home
         this.stack.push(this.layout[0]);
@@ -448,14 +447,9 @@ class NDContext {
     }
 
     render() {
-        // TODO: we cannot do an async DB call here!
-        // how can we pass work between threads so we 
-        // can put async DB on another thread?
-        let wany:any = window as any;
-        let nodom = wany?.__nodom__;
-        if ( nodom) {
-            console.log("render: duck_db", nodom);
-        }
+        // Contingent DDBW init: duck_handler only goes to a real value
+        // if index.html included the DuckDB init embedded module.
+        this.duck_handler = (window as any)?.__nodom__?.duck_handler || null;
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);

@@ -6,32 +6,38 @@
         <!-- script type="text/javascript" src="https://cdn.jsdelivr.net/gh/flyover/system.ts/build/system.js"> --></script>
         <script type="text/javascript" src="system.config.js"></script>
 
-        <!-- rm for quicker page loads if not using DuckDB in your app -->
-        <script type="module">
-            import * as duck_db from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
-            const JSDELIVR_BUNDLES = duck_db.getJsDelivrBundles();
-            const bundle = await duck_db.selectBundle(JSDELIVR_BUNDLES);
-            // creates storage and an address for the main worker
-            const worker_url = URL.createObjectURL(
-                    new Blob([`importScripts("${bundle.mainWorker}");`], {type: "text/javascript",}));
-            const worker = new Worker(worker_url);
-            const logger = new duck_db.ConsoleLogger();
-            let db = new duck_db.AsyncDuckDB(logger, worker);
-            // loads the web assembly module into memory and configures it
-            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-            // revoke the object url now no longer needed
-            URL.revokeObjectURL(worker_url);
-            let conn = await db.connect();
-            window.__nodom__ = {duck_db:db, duck_conn:conn};
-            console.log("index.html: DuckDB instantiated ", worker_url);
-        </script>
 
-        <!-- the main point of entry for NoDOM -->
+        <!-- the main point of entry for NoDOM: executes on main thread -->
         <script type="text/javascript">
             System.import("main").then( 
                 function (main) { main.default(); }
             ).catch(console.error);
         </script>
+        
+
+        <!-- rm for quicker page loads if not using DuckDB in your app
+             Note use of defer so this execs when page load is complete
+             Also note thread creation here for DB engine -->
+        <script type="module" defer>
+            import * as duck_db from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
+            const JSDELIVR_BUNDLES = duck_db.getJsDelivrBundles();
+            const bundle = await duck_db.selectBundle(JSDELIVR_BUNDLES);
+            // creates storage and an address for the DB engine worker thread
+            const db_worker_url = URL.createObjectURL(
+                    new Blob([`importScripts("${bundle.mainWorker}");`], {type: "text/javascript",}));
+            const db_worker = new Worker(db_worker_url);
+            const logger = new duck_db.ConsoleLogger();
+            let db = new duck_db.AsyncDuckDB(logger, db_worker);
+            // loads the web assembly module into memory and configures it
+            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+            // revoke the object url now no longer needed
+            URL.revokeObjectURL(db_worker_url);
+            // Now create the the DB handler worker thread
+            const handler_worker = new Worker("./duck_handler.js");
+            window.__nodom__ = {duck_handler:handler_worker};
+            console.log("index.html: DuckDB instantiated ", db_worker_url);
+        </script>
+        
     </head>
     <!-- NoBODY cos NoDOM -->
 </html>
