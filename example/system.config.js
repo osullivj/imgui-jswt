@@ -3,7 +3,7 @@ System.config({
         imports: {
             "bind-imgui": "../build/bind-imgui.js",
             "imgui-js": "../build/imgui.js",
-            "main": "./build/main.js",
+            "main": "./build/main.js"
         }
     },
 });
