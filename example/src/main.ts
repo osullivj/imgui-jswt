@@ -447,6 +447,12 @@ class NDContext {
     }
 
     render() {
+        // TODO: rm this when we've figured out how duck_handler.js
+        // can postMessage to here
+        let dh:any|null = (window as any)?.__nodom__?.duck_handler || null;
+        if (dh && !this.duck_handler) {
+            dh.postMessage("select 1729;");
+        }
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
         this.duck_handler = (window as any)?.__nodom__?.duck_handler || null;

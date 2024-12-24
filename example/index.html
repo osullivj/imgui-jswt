@@ -34,6 +34,8 @@
             URL.revokeObjectURL(db_worker_url);
             // Now create the the DB handler worker thread
             const handler_worker = new Worker("./duck_handler.js");
+            // And tell it about the DB handle object
+            handler_worker.postMessage(db);
             window.__nodom__ = {duck_handler:handler_worker};
             console.log("index.html: DuckDB instantiated ", db_worker_url);
         </script>

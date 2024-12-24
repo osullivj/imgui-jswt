@@ -35,9 +35,9 @@ async function exec_duck_db_query(sql) {
 
 self.onmessage = async (event) => {
     const msg = event.data;
-    // msg will either be the duck_db handle, 
+    // when msg is a string will either be the duck_db handle, 
     // or a SQL query
-    if (typeof msg !== "string") {
+    if (typeof msg == "string") {
         let arrow_table = await exec_duck_db_query(msg);
         const cols = arrowTable.schema.fields.map((field) => field.name);
         console.log("duck_handler cols:", cols);
