@@ -54,7 +54,8 @@ self.onmessage = async (event) => {
             console.log("duck_handler cols:", cols);
             const rows = arrow_table.toArray();
             console.log("duck_handler rows:", rows);
-            postMessage({rtype:"query_result", schema:cols, query:nd_db_request.payload});
+            // postMessage({rtype:"query_result", schema:cols, row_count:arrow_table.numRows, query:nd_db_request.payload});
+            postMessage({rtype:"query_result", payload:arrow_table});
             break;
         case "query_result":
             // we do not process our own results!
