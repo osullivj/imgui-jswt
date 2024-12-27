@@ -388,8 +388,6 @@ class NDContext {
         this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
         ImGui.ASSERT(this.font !== null);
 
-
-
         // Finally, tee up the first element in layout to render: home
         this.stack.push(this.layout[0]);
 
@@ -446,15 +444,15 @@ class NDContext {
         this.websock!.send(JSON.stringify(this.data_change));
     }
     
-    check_duck_handler(): void {
+    check_duck_module(): void {
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
-        let dh:any|null = (window as any)?.__nodom__?.duck_module || null;
-        if (dh && !this.duck_module) {
-            this.duck_module = dh;
-            console.log('NDContext.check_duck_handler: window.__nodom__.duck_handler recved');
-            dh.postMessage("select 1729;");
-            dh.addEventListener('message', this.on_duck_event);
+        let dmod:any|null = (window as any)?.__nodom__?.duck_module || null;
+        if (dmod && !this.duck_module) {
+            this.duck_module = dmod;
+            console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
+            dmod.postMessage({rtype:"query", payload:"select 1729;"});
+            dmod.addEventListener('message', this.on_duck_event);
         }       
     }
     
@@ -463,7 +461,7 @@ class NDContext {
     }
 
     render(): void {
-        this.check_duck_handler();
+        this.check_duck_module();
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);

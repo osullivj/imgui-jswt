@@ -44,17 +44,22 @@ async function exec_duck_db_query(sql) {
 }
 
 self.onmessage = async (event) => {
-    const msg = event.data;
-    // when msg is a string will either be the duck_db handle, 
-    // or a SQL query
-    if (typeof msg == "string") {
-        let arrow_table = await exec_duck_db_query(msg);
-        const cols = arrow_table.schema.fields.map((field) => field.name);
-        console.log("duck_handler cols:", cols);
-        const rows = arrow_table.toArray();
-        console.log("duck_handler rows:", rows);
-    }
-    else {
-        console.error("duck_handler: unexpected msg: ", msg);
+    const nd_db_request = event.data;
+    switch (nd_db_request.rtype) {
+        case "load_parquet":
+            break;
+        case "query":
+            let arrow_table = await exec_duck_db_query(nd_db_request.payload);
+            const cols = arrow_table.schema.fields.map((field) => field.name);
+            console.log("duck_handler cols:", cols);
+            const rows = arrow_table.toArray();
+            console.log("duck_handler rows:", rows);
+            postMessage({rtype:"query_result", schema:cols, query:nd_db_request.payload});
+            break;
+        case "query_result":
+            // we do not process our own results!
+            break;
+        default:
+            console.error("duck_module.onmessage: unexpected DB request type: ", nd_db_request.rtype);
     }
 };
