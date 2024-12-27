@@ -10,6 +10,25 @@
 let duck_db = null;
 let duck_conn = null;
 
+// This was in index.html: by doing it here we avoid having to pass the
+// DB handle across threads. NB this module must be pulled in to index.html
+// like so...
+// <script type="module" src="./duck_handler.js" defer></script>
+import * as duck from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
+const JSDELIVR_BUNDLES = duck.getJsDelivrBundles();
+const bundle = await duck.selectBundle(JSDELIVR_BUNDLES);
+// creates storage and an address for the DB engine worker thread
+const db_worker_url = URL.createObjectURL(
+    new Blob([`importScripts("${bundle.mainWorker}");`], {type: "text/javascript",}));
+const db_worker = new Worker(db_worker_url);
+const logger = new duck.ConsoleLogger();
+duck_db = new duck.AsyncDuckDB(logger, db_worker);
+// loads the web assembly module into memory and configures it
+await duck_db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+// revoke the object url now no longer needed
+URL.revokeObjectURL(db_worker_url);
+console.log("duck_handler.js: DuckDB instantiated ", db_worker_url);
+window.__nodom__ = {duck_handler:self};
 
 async function exec_duck_db_query(sql) {
     if (!duck_db) {
@@ -24,27 +43,18 @@ async function exec_duck_db_query(sql) {
     return arrow_table;
 }
 
-
-// https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/self
-// "The self read-only property of the WorkerGlobalScope interface returns
-// a reference to the WorkerGlobalScope itself. Most of the time it is a
-// specific scope like DedicatedWorkerGlobalScope, SharedWorkerGlobalScope,
-// or ServiceWorkerGlobalScope."
-// Which means Worker('./duck_handler.js').postMessage(e) will cause
-// self.onmessage to fire.
-
 self.onmessage = async (event) => {
     const msg = event.data;
     // when msg is a string will either be the duck_db handle, 
     // or a SQL query
     if (typeof msg == "string") {
         let arrow_table = await exec_duck_db_query(msg);
-        const cols = arrowTable.schema.fields.map((field) => field.name);
+        const cols = arrow_table.schema.fields.map((field) => field.name);
         console.log("duck_handler cols:", cols);
         const rows = arrow_table.toArray();
-        console.log("duck_handler:", tableRows);
+        console.log("duck_handler rows:", rows);
     }
     else {
-        duck_db = msg; 
+        console.error("duck_handler: unexpected msg: ", msg);
     }
 };
