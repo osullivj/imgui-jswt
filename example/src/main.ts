@@ -298,9 +298,9 @@ class NDContext {
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
-    // will only become !== null if we have module JS for Duc
+    // will only become !== null if we have module JS for Duck
     // instantiation in index.html
-    duck_handler:any|null = null;
+    duck_module:any|null = null;
         
     
     constructor() {
@@ -445,17 +445,25 @@ class NDContext {
         this.data_change.cache_key = accessor.cache_key;
         this.websock!.send(JSON.stringify(this.data_change));
     }
-
-    render() {
-        // TODO: rm this when we've figured out how duck_handler.js
-        // can postMessage to here
-        let dh:any|null = (window as any)?.__nodom__?.duck_handler || null;
-        if (dh && !this.duck_handler) {
-            dh.postMessage("select 1729;");
-        }
+    
+    check_duck_handler(): void {
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
-        this.duck_handler = (window as any)?.__nodom__?.duck_handler || null;
+        let dh:any|null = (window as any)?.__nodom__?.duck_module || null;
+        if (dh && !this.duck_module) {
+            this.duck_module = dh;
+            console.log('NDContext.check_duck_handler: window.__nodom__.duck_handler recved');
+            dh.postMessage("select 1729;");
+            dh.addEventListener('message', this.on_duck_event);
+        }       
+    }
+    
+    on_duck_event(event:any): void {
+        console.log('NDContext.on_duck_event: ', event.data);
+    }
+
+    render(): void {
+        this.check_duck_handler();
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);
