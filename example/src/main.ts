@@ -450,13 +450,27 @@ class NDContext {
         let dmod:any|null = (window as any)?.__nodom__?.duck_module || null;
         if (dmod && !this.duck_module) {
             this.duck_module = dmod;
-            console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
-            dmod.postMessage({rtype:"query", payload:"select 1729;"});
             dmod.addEventListener('message', this.on_duck_event);
+            console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
+            // send a test query
+            dmod.postMessage({rtype:"query", payload:"select 1729;"});
         }       
     }
     
     on_duck_event(event:any): void {
+        const nd_db_request = event.data;
+        switch (nd_db_request.rtype) {
+            // cases that we send: silently ignore
+            case "load_parquet":
+            case "query":
+                break;
+            case "query_result":
+                let arrow_table:any = nd_db_request.payload;
+                // we do not process our own results!
+                break;
+            default:
+                console.error("NDContext.on_duck_event: unexpected DB request type: ", nd_db_request.rtype);
+    }        
         console.log('NDContext.on_duck_event: ', event.data);
     }
 
