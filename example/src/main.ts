@@ -329,7 +329,7 @@ class NDContext {
         let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
         let config_url = "http://" + window.location.hostname + ":8090/api/config";        
         let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
-        let cache_url = "http://" + window.location.hostname + ":8090/api/cache";        
+        let data_url = "http://" + window.location.hostname + ":8090/api/data";        
         // Initialize WebSocket with buffering and 1s reconnection delay        
         this.websock = new WebSocket(websock_url);
         this.websock.onopen = this.on_open;
@@ -357,7 +357,7 @@ class NDContext {
             console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
         }
         // Pull cache init from server
-        const cache_response = await window.fetch(cache_url);
+        const cache_response = await window.fetch(data_url);
         const cache_json = await cache_response.text();
         console.log('NDContext.init: ' + cache_json);
         let cache_init = await JSON.parse(cache_json);
