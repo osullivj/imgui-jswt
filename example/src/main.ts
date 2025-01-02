@@ -403,6 +403,23 @@ class NDContext {
         console.log("Websock closed");
     }
     
+    on_data_change(msg:any): void {
+        // TODO: add check on new_value and
+        // old_value to spot type changes
+        // NB 
+        if (typeof msg.new_value === "number") {
+            const accessor = cache_access<number>(_nd_ctx, msg.cache_key);
+            accessor.value = msg.new_value;
+        }
+        else if (typeof msg.new_value === "string") {
+            const accessor = cache_access<string>(_nd_ctx, msg.cache_key);
+            accessor.value = msg.new_value;
+        }
+        else {
+            this.cache.set(msg.cache_key, new Cached<any>(this, msg.new_value));
+        }
+    }
+    
     update(ev: any): void {
         // NB we're in a websock callback here, so "this" is not
         // the NDContext instance, it's the websock
@@ -411,19 +428,10 @@ class NDContext {
         let cache:CachedAnyMap = _nd_ctx.cache;
         switch (msg.nd_type) {
             case "DataChange":
-                // TODO: add check on new_value and
-                // old_value to spot type changes
-                if (typeof msg.new_value === "number") {
-                    const accessor = cache_access<number>(_nd_ctx, msg.cache_key);
-                    accessor.value = msg.new_value;
-                }
-                else if (typeof msg.new_value === "string") {
-                    const accessor = cache_access<string>(_nd_ctx, msg.cache_key);
-                    accessor.value = msg.new_value;
-                }
-                else {
-                    // TODO: non atomic updates
-                }
+                _nd_ctx.on_data_change(msg);
+                break;
+            case "ParquetScan":
+                _nd_ctx.duck_dispatch(msg);
                 break;
             default:
                 break;
@@ -453,25 +461,32 @@ class NDContext {
             dmod.addEventListener('message', this.on_duck_event);
             console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
             // send a test query
-            dmod.postMessage({rtype:"query", payload:"select 1729;"});
+            this.duck_dispatch({nd_type:"Query", sql:"select 1729;"});
         }       
     }
     
+    duck_dispatch(db_request:any): void {
+        if (!this.duck_module) {
+            console.error("NDContext.duck_dispatch: no DB connection to dispatch ", db_request);
+        }
+        this.duck_module.postMessage(db_request);
+    }
+    
     on_duck_event(event:any): void {
+        console.log('NDContext.on_duck_event: ', event.data);
         const nd_db_request = event.data;
-        switch (nd_db_request.rtype) {
+        switch (nd_db_request.nd_type) {
             // cases that we send: silently ignore
-            case "load_parquet":
-            case "query":
+            case "ParquetScan":
+            case "Query":
                 break;
-            case "query_result":
-                let arrow_table:any = nd_db_request.payload;
-                // we do not process our own results!
+            case "QueryResult":
+                let arrow_table:any = nd_db_request.arrow_table;
                 break;
             default:
-                console.error("NDContext.on_duck_event: unexpected DB request type: ", nd_db_request.rtype);
-    }        
-        console.log('NDContext.on_duck_event: ', event.data);
+                console.error("NDContext.on_duck_event: unexpected DB request type: ", event.data);
+        }
+
     }
 
     render(): void {
