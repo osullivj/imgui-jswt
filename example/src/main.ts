@@ -3,8 +3,9 @@ import * as ImGui_Impl from "./imgui_impl.js";
 import { ShowDemoWindow } from "./imgui_demo.js";
 import { MemoryEditor } from "./imgui_memory_editor.js";
 
-// imgui demo state
+// Global UI state
 let show_demo_window: boolean = false;
+let show_memory_use: boolean = false;
 let show_another_window: boolean = false;
 const clear_color: ImGui.Vec4 = new ImGui.Vec4(0.45, 0.55, 0.60, 1.00);
 
@@ -188,22 +189,29 @@ function render_same_line(ctx:NDContext, w: Widget): void {
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
-    ImGui.Text(`Application average ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame (${ctx.io!.Framerate.toFixed(1)} FPS)`);
-    ImGui.Checkbox("Memory Editor", (value = memory_editor.Open) => memory_editor.Open = value);
+    ImGui.Text(`${ctx.io!.Framerate.toFixed(1)} FPS avg ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame`);
+    ImGui.Checkbox("Mem use", (value = show_memory_use) => show_memory_use = value);
     ImGui.SameLine();
-    ImGui.Checkbox("Demo Window", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state        
-    if (memory_editor.Open)
+    ImGui.Checkbox("Mem edit", (value = memory_editor.Open) => memory_editor.Open = value);
+    ImGui.SameLine();
+    ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
+    if (memory_editor.Open) {
+        ImGui.SameLine();
         memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
-    const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
-    // ImGui.Text(`Total non-mmapped bytes (arena):       ${mi.arena}`);
-    // ImGui.Text(`# of free chunks (ordblks):            ${mi.ordblks}`);
-    // ImGui.Text(`# of free fastbin blocks (smblks):     ${mi.smblks}`);
-    // ImGui.Text(`# of mapped regions (hblks):           ${mi.hblks}`);
-    // ImGui.Text(`Bytes in mapped regions (hblkhd):      ${mi.hblkhd}`);
-    ImGui.Text(`Max. total allocated space (usmblks):  ${mi.usmblks}`);
-    // ImGui.Text(`Free bytes held in fastbins (fsmblks): ${mi.fsmblks}`);
-    ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
-    ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
+
+    }
+    if (show_memory_use) {
+        const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
+        // ImGui.Text(`Total non-mmapped bytes (arena):       ${mi.arena}`);
+        // ImGui.Text(`# of free chunks (ordblks):            ${mi.ordblks}`);
+        // ImGui.Text(`# of free fastbin blocks (smblks):     ${mi.smblks}`);
+        // ImGui.Text(`# of mapped regions (hblks):           ${mi.hblks}`);
+        // ImGui.Text(`Bytes in mapped regions (hblkhd):      ${mi.hblkhd}`);
+        ImGui.Text(`Max. total allocated space (usmblks):  ${mi.usmblks}`);
+        // ImGui.Text(`Free bytes held in fastbins (fsmblks): ${mi.fsmblks}`);
+        ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
+        ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
+    }
        
     if (ctx.font) {
         ImGui.PushFont(ctx.font);

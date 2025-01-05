@@ -57,23 +57,27 @@ async function load_parquet(url) {
 }
 
 self.onmessage = async (event) => {
+    let arrow_table = null;
     const nd_db_request = event.data;
-    switch (nd_db_request.rtype) {
-        case "load_parquet":
+    switch (nd_db_request.nd_type) {
+        case "ParquetScan":
+            arrow_table = await exec_duck_db_query(nd_db_request.sql);
+            postMessage({nd_type:"ParquetScanResult", arrow_table:arrow_table});
             break;
-        case "query":
-            let arrow_table = await exec_duck_db_query(nd_db_request.payload);
+        case "Query":
+            arrow_table = await exec_duck_db_query(nd_db_request.sql);
             const cols = arrow_table.schema.fields.map((field) => field.name);
             console.log("duck_module cols:", cols);
             const rows = arrow_table.toArray();
             console.log("duck_module rows:", rows);
             // postMessage({rtype:"query_result", schema:cols, row_count:arrow_table.numRows, query:nd_db_request.payload});
-            postMessage({rtype:"query_result", payload:arrow_table});
+            postMessage({nd_type:"QueryResult", arrow_table:arrow_table});
             break;
-        case "query_result":
+        case "QueryResult":
+        case "ParquetScanResult":
             // we do not process our own results!
             break;
         default:
-            console.error("duck_module.onmessage: unexpected DB request type: ", nd_db_request.rtype);
+            console.error("duck_module.onmessage: unexpected request: ", event);
     }
 };
