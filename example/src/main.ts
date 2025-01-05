@@ -189,6 +189,13 @@ function render_same_line(ctx:NDContext, w: Widget): void {
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
+    // Push colour styling for the DB button
+    ImGui.PushStyleColor(ImGui.Col.Button, ctx.db_status_color);
+    if (ImGui.Button("DB")) {
+        // TODO: raise Duck shell
+    }
+    ImGui.PopStyleColor(1);
+    ImGui.SameLine();
     ImGui.Text(`${ctx.io!.Framerate.toFixed(1)} FPS avg ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame`);
     ImGui.Checkbox("Mem use", (value = show_memory_use) => show_memory_use = value);
     ImGui.SameLine();
@@ -296,6 +303,11 @@ class NDContext {
     // fonts
     font: ImGui.Font|null = null;
     io: ImGui.IO|null = null;
+    // colours: https://www.w3schools.com/colors/colors_picker.asp
+    red: number = ImGui.COL32(255, 51, 0);
+    green: number = ImGui.COL32(102, 153, 0);
+    amber: number = ImGui.COL32(255, 153, 0);
+    db_status_color: number = ImGui.COL32(255, 51, 0);
     home: any|null = null;          // handle to Home layout
     // working vars so we can avoid the use of locals in render funcs
     step: number = 1;
@@ -465,6 +477,8 @@ class NDContext {
         // if index.html included the DuckDB init embedded module.
         let dmod:any|null = (window as any)?.__nodom__?.duck_module || null;
         if (dmod && !this.duck_module) {
+            // flip the status button to amber
+            this.db_status_color = this.amber;
             this.duck_module = dmod;
             dmod.addEventListener('message', this.on_duck_event);
             console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
@@ -481,15 +495,20 @@ class NDContext {
     }
     
     on_duck_event(event:any): void {
+        // NB see event handler setup in check_duck_module: it's dispatched
+        // from the duck module, so the "this" will not be the NDContext
+        // singleton, it will be the duck module.
         console.log('NDContext.on_duck_event: ', event.data);
         const nd_db_request = event.data;
         switch (nd_db_request.nd_type) {
             // cases that we send: silently ignore
             case "ParquetScan":
             case "Query":
+                _nd_ctx.db_status_color = _nd_ctx.green;
                 break;
             case "ParquetScanResult":
             case "QueryResult":
+                _nd_ctx.db_status_color = _nd_ctx.green;
                 let arrow_table:any = nd_db_request.arrow_table;
                 break;
             default:
@@ -603,7 +622,7 @@ function _loop(time: number): void {
     }
 
     _nd_ctx.render();   
-
++
     ImGui.EndFrame();
 
     // Rendering
