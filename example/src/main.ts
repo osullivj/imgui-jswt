@@ -480,6 +480,7 @@ class NDContext {
             case "ParquetScan":
             case "Query":
                 break;
+            case "ParquetScanResult":
             case "QueryResult":
                 let arrow_table:any = nd_db_request.arrow_table;
                 break;
