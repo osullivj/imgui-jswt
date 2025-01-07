@@ -510,6 +510,7 @@ class NDContext {
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 let arrow_table:any = nd_db_request.arrow_table;
+                console.log(`NDContext.on_duck_event: QueryResult rows:${arrow_table.numRows}, cols:${arrow_table.numCols}`);
                 break;
             default:
                 console.error("NDContext.on_duck_event: unexpected DB request type: ", event.data);
@@ -577,7 +578,7 @@ async function _init(): Promise<void> {
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
     if (typeof(window) !== "undefined") {
-        const output: HTMLElement = document.getElementById("output") || document.body;
+        const output: HTMLElement = document.getElementById("nodom_gui") || document.body;
         const canvas: HTMLCanvasElement = document.createElement("canvas");
         output.appendChild(canvas);
         canvas.tabIndex = 1;
