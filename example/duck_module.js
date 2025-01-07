@@ -10,11 +10,19 @@
 let duck_db = null;
 let duck_conn = null;
 
-// This was in index.html: by doing it here we avoid having to pass the
+// This JS impl was in index.html: by doing it here we avoid having to pass the
 // DB handle across threads. NB this module must be pulled in to index.html
 // like so...
 // <script type="module" src="./duck_module.js" defer></script>
+
+// This import was "import * as duck" so we could scope the duck names.
+// However, it looks like the duck shell stuff needs these names to be
+// at the top level so that the no
 import * as duck from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
+import * as shell from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm-shell@latest/+esm";
+// Cannot import wasm; we have to fetch
+const shell_wasm = await fetch("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm-shell/dist/shell_bg.wasm");
+
 const JSDELIVR_BUNDLES = duck.getJsDelivrBundles();
 const bundle = await duck.selectBundle(JSDELIVR_BUNDLES);
 // creates storage and an address for the DB engine worker thread
@@ -28,7 +36,22 @@ await duck_db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 // revoke the object url now no longer needed
 URL.revokeObjectURL(db_worker_url);
 console.log("duck_module.js: DuckDB instantiated ", db_worker_url);
+// main.ts uses __nodom__
 window.__nodom__ = {duck_module:self};
+
+// is there a nodom_duck_shell container element in our HTML?
+if (window.nodom_duck_shell) {
+    while (window.nodom_duck_shell.firstChild) {
+        window.nodom_duck_shell.removeChild(window.nodom_duck_shell.firstChild);
+    }   
+    await shell.embed({
+        shellModule: shell_wasm.arrayBuffer(),
+        container: window.nodom_duck_shell,
+        resolveDatabase: async () => {return duck_db;}
+    });
+    console.log("duck_module.js: DuckDB wasm shell embedded");
+}
+
 
 async function exec_duck_db_query(sql) {
     if (!duck_db) {
