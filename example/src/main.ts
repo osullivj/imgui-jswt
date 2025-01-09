@@ -135,8 +135,28 @@ function dispatch_render(ctx:NDContext, w: Widget): void {
 }
 
 
-function render_container(ctx:NDContext, widget: Widget): void {
-    if (widget.children) widget.children.forEach( (w) => {dispatch_render(ctx, w);});
+function render_container(ctx:NDContext, w: Widget): void {
+    // TODO: get canvas style position from Home cspec
+    // We may want to switch to having canvas config in the
+    // data cache, so it can change during GUI lifetime. Not
+    // the layout cache as that only addresses what happens
+    // _inside_ a canvas.
+    var gui_width = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
+    let gui_height = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
+    let shell_left = w.cspec["shell_canvas_style_left" as keyof CacheMap] as string;
+    let shell_top = w.cspec["shell_canvas_style_top" as keyof CacheMap] as string;
+    if (gui_width && gui_height) {           
+        if (gui_width !== _nd_ctx.gui_width) {
+            console.log("check_canvas_config: gui_width:" + _nd_ctx.gui_width);
+        }        
+    }
+    let shell_canvas_container:any = document.getElementById("nodom_duck_shell_div");
+    if (shell_canvas_container?.firstChild) {
+        let shell_canvas:any = shell_canvas_container.firstChild;
+        if (shell_left) shell_canvas.style.left = shell_left;
+        if (shell_top) shell_canvas.style.left = shell_top;
+    }
+    if (w.children) w.children.forEach( (w) => {dispatch_render(ctx, w);});
 }
 
 
@@ -282,7 +302,7 @@ class NDContext {
     stack: Widget[] = [];                       // widgets currently rendering
   
     // config from backend
-    config: CachedAnyMap = new Map<string,Cached<any>>();   
+    // config: CachedAnyMap = new Map<string,Cached<any>>();   
     // data from backend
     cache: CachedAnyMap = new Map<string,Cached<any>>();   
     
@@ -318,6 +338,17 @@ class NDContext {
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
+    // initial gui canvas top, left, right, bottom, width, height
+    // NB yes they are strings as they're in a styling context
+    // so may be "100px" or "100%".
+    gui_position:string = "absolute";
+    gui_left:string = "0px";
+    gui_right:string = "0px";
+    gui_top:string = "0px";
+    gui_bottom:string = "0px";
+    gui_width:string = "100%";
+    gui_height:string = "100%";
+    shell_left:string = "100px";
     // will only become !== null if we have module JS for Duck
     // instantiation in index.html
     duck_module:any|null = null;
@@ -347,7 +378,7 @@ class NDContext {
         
         // Some standard URLs recognised on the server side
         let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
-        let config_url = "http://" + window.location.hostname + ":8090/api/config";        
+        // let config_url = "http://" + window.location.hostname + ":8090/api/config";        
         let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
         let data_url = "http://" + window.location.hostname + ":8090/api/data";        
         // Initialize WebSocket with buffering and 1s reconnection delay        
@@ -355,6 +386,7 @@ class NDContext {
         this.websock.onopen = this.on_open;
         this.websock.onclose = this.on_close;
         this.websock.onmessage = this.update;
+        /**
         // Pull cache init from server
         const config_response = await window.fetch(config_url);
         const config_json = await config_response.text();
@@ -375,7 +407,7 @@ class NDContext {
                 this.config.set(ckey, new Cached<any>(this, val, ckey));
             }
             console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
-        }
+        } */
         // Pull cache init from server
         const cache_response = await window.fetch(data_url);
         const cache_json = await cache_response.text();
@@ -472,6 +504,8 @@ class NDContext {
         this.websock!.send(JSON.stringify(this.data_change));
     }
     
+
+    
     check_duck_module(): void {
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
@@ -485,8 +519,8 @@ class NDContext {
             // send a test query
             this.duck_dispatch({nd_type:"Query", sql:"select 1729;"});
         }       
-    }
-    
+    }    
+
     duck_dispatch(db_request:any): void {
         if (!this.duck_module) {
             console.error("NDContext.duck_dispatch: no DB connection to dispatch ", db_request);
@@ -519,7 +553,7 @@ class NDContext {
     }
 
     render(): void {
-        this.check_duck_module();
+        this.check_duck_module();        
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
         console.log('NDContext.render: child count ' + this.stack.length);
@@ -578,18 +612,20 @@ async function _init(): Promise<void> {
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
     if (typeof(window) !== "undefined") {
-        const output: HTMLElement = document.getElementById("nodom_gui") || document.body;
+        const output: HTMLElement = document.getElementById("nodom_gui_div") || document.body;
         const canvas: HTMLCanvasElement = document.createElement("canvas");
         output.appendChild(canvas);
+        canvas.id = "nodom_gui_canvas";
         canvas.tabIndex = 1;
-        canvas.style.position = "absolute";
-        canvas.style.left = "0px";
-        canvas.style.right = "0px";
-        canvas.style.top = "0px";
-        canvas.style.bottom = "0px";
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
+        canvas.style.position = _nd_ctx.gui_position;
+        canvas.style.left = _nd_ctx.gui_left;
+        canvas.style.right = _nd_ctx.gui_right;
+        canvas.style.top = _nd_ctx.gui_top;
+        canvas.style.bottom = _nd_ctx.gui_bottom;
+        canvas.style.width =  _nd_ctx.gui_width;
+        canvas.style.height = _nd_ctx.gui_height;
         canvas.style.userSelect = "none";
+        canvas.style.zIndex = "0"; // duck shell canvas will flip between -1/1
         ImGui_Impl.Init(canvas);
     } else {
         ImGui_Impl.Init(null);

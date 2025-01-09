@@ -2,7 +2,7 @@
     <head>
         <title>NoDOM</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <!-- bootstrap for grid layout and visibility classes -->
+        <!-- bootstrap because shell.duckdb.org uses it: see elemnts in dev tools -->
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
         <script type="text/javascript" src="../node_modules/@flyover/system/build/system.js"></script>
         <!-- script type="text/javascript" src="https://cdn.jsdelivr.net/gh/flyover/system.ts/build/system.js"> --></script>
@@ -19,16 +19,34 @@
                 function (main) { main.default(); }
             ).catch(console.error);
         </script>
+        <!-- <style>
+        .terminal xterm {
+        }
+        .xterm-char-measure-element {
+            visibility: hidden;
+        }
+        #nodom_outer {
+            position: relative;
+        }
+        #nodom_gui_div { 
+            height: 500px;
+            width: 800px;
+        }
+        #nodom_duck_shell_div {
+            position: absolute;
+            top: 0px;
+            left: 100px;
+            height: 500px;
+            width: 800px;
+            z-index: 1;
+        }
+        </style> -->
     </head>
     <body>
         <!-- container divs for the nodom and duck shell canvases -->
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-xl-12" id="nodom_gui"></div>
-            </div>
-            <div class="row">
-                <div class="col-xl-12" id="nodom_duck_shell"></div>
-            </div>
+        <div id="nodom_outer">
+            <div id="nodom_gui_div"></div>
+            <div id="nodom_duck_shell_div"></div>
         </div>
     </body>
 </html>

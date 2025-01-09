@@ -40,15 +40,16 @@ console.log("duck_module.js: DuckDB instantiated ", db_worker_url);
 window.__nodom__ = {duck_module:self};
 
 // is there a nodom_duck_shell container element in our HTML?
-if (window.nodom_duck_shell) {
-    while (window.nodom_duck_shell.firstChild) {
-        window.nodom_duck_shell.removeChild(window.nodom_duck_shell.firstChild);
+if (window.nodom_duck_shell_div) {
+    while (window.nodom_duck_shell_div.firstChild) {
+        window.nodom_duck_shell_div.removeChild(window.nodom_duck_shell_div.firstChild);
     }   
     await shell.embed({
         shellModule: shell_wasm.arrayBuffer(),
-        container: window.nodom_duck_shell,
+        container: window.nodom_duck_shell_div,
         resolveDatabase: async () => {return duck_db;}
     });
+    window.nodom_duck_shell_div.firstChild.id = "nodom_duck_shell_canvas";
     console.log("duck_module.js: DuckDB wasm shell embedded");
 }
 
