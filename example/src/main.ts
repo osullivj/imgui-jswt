@@ -394,11 +394,10 @@ class NDContext {
         
         // Some standard URLs recognised on the server side
         // TODO: config port 8090
-        let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
-        // let config_url = "http://" + window.location.hostname + ":8090/api/config";        
-        let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
-        let data_url = "http://" + window.location.hostname + ":8090/api/data";        
-        // Initialize WebSocket with buffering and 1s reconnection delay        
+        let websock_url = "ws://" + window.location.hostname + ":" + window.location.port + "/api/websock";
+        let layout_url = "http://" + window.location.hostname + ":" + window.location.port + "/api/layout";
+        let data_url = "http://" + window.location.hostname + ":" + window.location.port + "/api/data";
+        // Initialize WebSocket with buffering and 1s reconnection delay
         this.websock = new WebSocket(websock_url);
         this.websock.onopen = this.on_open;
         this.websock.onclose = this.on_close;
