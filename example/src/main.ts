@@ -141,6 +141,7 @@ function render_container(ctx:NDContext, w: Widget): void {
     // data cache, so it can change during GUI lifetime. Not
     // the layout cache as that only addresses what happens
     // _inside_ a canvas.
+    /**
     var gui_width = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
     let gui_height = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
     let shell_left = w.cspec["shell_canvas_style_left" as keyof CacheMap] as string;
@@ -155,7 +156,7 @@ function render_container(ctx:NDContext, w: Widget): void {
         let shell_canvas:any = shell_canvas_container.firstChild;
         if (shell_left) shell_canvas.style.left = shell_left;
         if (shell_top) shell_canvas.style.left = shell_top;
-    }
+    } */
     if (w.children) w.children.forEach( (w) => {dispatch_render(ctx, w);});
 }
 
@@ -213,6 +214,7 @@ function render_footer(ctx:NDContext, w: Widget): void {
     ImGui.PushStyleColor(ImGui.Col.Button, ctx.db_status_color);
     if (ImGui.Button("DB")) {
         // TODO: raise Duck shell
+        // ctx.canvas.style.
     }
     ImGui.PopStyleColor(1);
     ImGui.SameLine();
@@ -338,6 +340,7 @@ class NDContext {
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
     data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     cache_ref:Cached<any>|undefined;
+    canvas: HTMLCanvasElement | null = null;
     // initial gui canvas top, left, right, bottom, width, height
     // NB yes they are strings as they're in a styling context
     // so may be "100px" or "100%".
@@ -503,9 +506,7 @@ class NDContext {
         this.data_change.cache_key = accessor.cache_key;
         this.websock!.send(JSON.stringify(this.data_change));
     }
-    
-
-    
+       
     check_duck_module(): void {
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
@@ -546,6 +547,12 @@ class NDContext {
                 let arrow_table:any = nd_db_request.arrow_table;
                 console.log(`NDContext.on_duck_event: QueryResult rows:${arrow_table.numRows}, cols:${arrow_table.numCols}`);
                 break;
+            case "DuckInstance":
+                // duck_module.js has created the duck_db instance
+                // this is the way we'd like it to work, rather than
+                // invoking on each render...
+                _nd_ctx.check_duck_module();
+                break;
             default:
                 console.error("NDContext.on_duck_event: unexpected DB request type: ", event.data);
         }
@@ -553,10 +560,15 @@ class NDContext {
     }
 
     render(): void {
+        // unfortunately we have to poll for window.__nodom__ changes
+        // as shell_module.js cannot postMessage to here until we've
+        // added an eventListener to shell_module in check_duck_module.
+        // TODO: Can we export a TS func from here to copy the duck_db
+        // handle into a main.ts static var?
         this.check_duck_module();        
         // fire the render methods of all the widgets on the stack
         // starting with the bottom of the stack: NDHome
-        console.log('NDContext.render: child count ' + this.stack.length);
+        // console.log('NDContext.render: child count ' + this.stack.length);
         for (let widget of this.stack) {
             dispatch_render(this, widget);
         } 
@@ -569,16 +581,34 @@ class NDContext {
     pop(): void {
         this.stack.pop();
     }
- 
+    
+    create_canvas(): HTMLCanvasElement {
+        const output: HTMLElement = document.getElementById("nodom_gui_div") || document.body;
+        this.canvas = document.createElement("canvas");
+        output.appendChild(this.canvas);
+        this.canvas.id = "nodom_gui_canvas";
+        this.canvas.tabIndex = 1;
+        this.canvas.style.position = this.gui_position;
+        this.canvas.style.left = this.gui_left;
+        this.canvas.style.right = this.gui_right;
+        this.canvas.style.top = this.gui_top;
+        this.canvas.style.bottom = this.gui_bottom;
+        this.canvas.style.width =  this.gui_width;
+        this.canvas.style.height = this.gui_height;
+        this.canvas.style.userSelect = "none";
+        this.canvas.style.zIndex = "0"; // duck shell canvas will flip between -1/1
+        // this.canvas.style.globalAlpha = "1.0";
+        return this.canvas;
+    }
 }
 
 let _nd_ctx: NDContext = new NDContext();
 
 
 async function _init(): Promise<void> {
+    // TODO: why isn't this working?
     const EMSCRIPTEN_VERSION = `${ImGui.bind.__EMSCRIPTEN_major__}.${ImGui.bind.__EMSCRIPTEN_minor__}.${ImGui.bind.__EMSCRIPTEN_tiny__}`;
     console.log("Emscripten Version", EMSCRIPTEN_VERSION);
-
     console.log("Total allocated space (uordblks) @ _init:", ImGui.bind.mallinfo().uordblks);
 
     // Setup Dear ImGui context
@@ -612,6 +642,7 @@ async function _init(): Promise<void> {
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
     if (typeof(window) !== "undefined") {
+        /**
         const output: HTMLElement = document.getElementById("nodom_gui_div") || document.body;
         const canvas: HTMLCanvasElement = document.createElement("canvas");
         output.appendChild(canvas);
@@ -626,7 +657,8 @@ async function _init(): Promise<void> {
         canvas.style.height = _nd_ctx.gui_height;
         canvas.style.userSelect = "none";
         canvas.style.zIndex = "0"; // duck shell canvas will flip between -1/1
-        ImGui_Impl.Init(canvas);
+        ImGui_Impl.Init(canvas); */
+        ImGui_Impl.Init(_nd_ctx.create_canvas());
     } else {
         ImGui_Impl.Init(null);
     }
@@ -659,7 +691,7 @@ function _loop(time: number): void {
     }
 
     _nd_ctx.render();   
-+
+
     ImGui.EndFrame();
 
     // Rendering

@@ -17,7 +17,7 @@ let duck_conn = null;
 
 // This import was "import * as duck" so we could scope the duck names.
 // However, it looks like the duck shell stuff needs these names to be
-// at the top level so that the no
+// at the top level
 import * as duck from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm";
 import * as shell from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm-shell@latest/+esm";
 // Cannot import wasm; we have to fetch
@@ -37,21 +37,12 @@ await duck_db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 URL.revokeObjectURL(db_worker_url);
 console.log("duck_module.js: DuckDB instantiated ", db_worker_url);
 // main.ts uses __nodom__
-window.__nodom__ = {duck_module:self};
-
-// is there a nodom_duck_shell container element in our HTML?
-if (window.nodom_duck_shell_div) {
-    while (window.nodom_duck_shell_div.firstChild) {
-        window.nodom_duck_shell_div.removeChild(window.nodom_duck_shell_div.firstChild);
-    }   
-    await shell.embed({
-        shellModule: shell_wasm.arrayBuffer(),
-        container: window.nodom_duck_shell_div,
-        resolveDatabase: async () => {return duck_db;}
-    });
-    window.nodom_duck_shell_div.firstChild.id = "nodom_duck_shell_canvas";
-    console.log("duck_module.js: DuckDB wasm shell embedded");
-}
+window.__nodom__ = {duck_module:self, duck_db:duck_db};
+// let our own event handler know window.__nodom__.duck_db is available
+// tried document.postMessage(), window.postMessage and self.postMessage
+// non get thru to main.ts, so we have to stick with the inefficient
+// polling of __nodom__ on each render...
+// window.postMessage({nd_type:"DuckInstance"});
 
 
 async function exec_duck_db_query(sql) {
@@ -100,6 +91,10 @@ self.onmessage = async (event) => {
         case "QueryResult":
         case "ParquetScanResult":
             // we do not process our own results!
+            break;
+        case "DuckInstance":
+            // repost to main.ts handler
+            postMessage({nd_type:"DuckInstance"});
             break;
         default:
             console.error("duck_module.onmessage: unexpected request: ", event);

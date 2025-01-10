@@ -9,8 +9,7 @@
         <script type="text/javascript" src="system.config.js"></script>
 
         <!-- rm for quicker page loads if not using DuckDB in your app
-             Note use of defer so this execs when page load is complete
-             Also note thread creation by duck_module for DB engine -->
+             Note use of defer so this execs when page load is complete -->
         <script type="module" src="./duck_module.js" defer></script>
         
         <!-- the main point of entry for NoDOM: executes on main thread -->
@@ -19,34 +18,6 @@
                 function (main) { main.default(); }
             ).catch(console.error);
         </script>
-        <!-- <style>
-        .terminal xterm {
-        }
-        .xterm-char-measure-element {
-            visibility: hidden;
-        }
-        #nodom_outer {
-            position: relative;
-        }
-        #nodom_gui_div { 
-            height: 500px;
-            width: 800px;
-        }
-        #nodom_duck_shell_div {
-            position: absolute;
-            top: 0px;
-            left: 100px;
-            height: 500px;
-            width: 800px;
-            z-index: 1;
-        }
-        </style> -->
     </head>
-    <body>
-        <!-- container divs for the nodom and duck shell canvases -->
-        <div id="nodom_outer">
-            <div id="nodom_gui_div"></div>
-            <div id="nodom_duck_shell_div"></div>
-        </div>
-    </body>
+    <!-- NoDOM: no HTML body -->
 </html>
