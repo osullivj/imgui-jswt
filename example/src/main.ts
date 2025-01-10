@@ -219,8 +219,9 @@ function render_footer(ctx:NDContext, w: Widget): void {
     // Push colour styling for the DB button
     ImGui.PushStyleColor(ImGui.Col.Button, ctx.db_status_color);
     if (ImGui.Button("DB")) {
-        // TODO: raise Duck shell
-        // ctx.canvas.style.
+        if (typeof(window) !== "undefined") {
+            window.open(_nd_ctx.duck_journal_url);
+        }
     }
     ImGui.PopStyleColor(1);
     ImGui.SameLine();
@@ -336,7 +337,10 @@ class NDContext {
     green: number = ImGui.COL32(102, 153, 0);
     amber: number = ImGui.COL32(255, 153, 0);
     db_status_color: number = ImGui.COL32(255, 51, 0);
-    home: any|null = null;          // handle to Home layout
+    // handle to Home layout
+    home: any|null = null;          
+    // URLs
+    duck_journal_url:string = "UNINITIALIZED";
     // working vars so we can avoid the use of locals in render funcs
     step: number = 1;
     step_fast: number = 1;
@@ -389,6 +393,7 @@ class NDContext {
         if (typeof(window) === "undefined") return 0;
         
         // Some standard URLs recognised on the server side
+        // TODO: config port 8090
         let websock_url = "ws://" + window.location.hostname + ":8090/api/websock";
         // let config_url = "http://" + window.location.hostname + ":8090/api/config";        
         let layout_url = "http://" + window.location.hostname + ":8090/api/layout";
@@ -397,7 +402,7 @@ class NDContext {
         this.websock = new WebSocket(websock_url);
         this.websock.onopen = this.on_open;
         this.websock.onclose = this.on_close;
-        this.websock.onmessage = this.update;
+        this.websock.onmessage = this.on_websock_message;
         // Pull cache init from server
         const cache_response = await window.fetch(data_url);
         const cache_json = await cache_response.text();
@@ -462,10 +467,10 @@ class NDContext {
         }
     }
     
-    update(ev: any): void {
+    on_websock_message(ev: any): void {
         // NB we're in a websock callback here, so "this" is not
         // the NDContext instance, it's the websock
-        console.log('NDContext.update: ' + ev.data);
+        console.log('NDContext.on_websock_message: ' + ev.data);
         let msg:any = JSON.parse(ev.data);
         let cache:CachedAnyMap = _nd_ctx.cache;
         switch (msg.nd_type) {
@@ -475,6 +480,8 @@ class NDContext {
             case "ParquetScan":
                 _nd_ctx.duck_dispatch(msg);
                 break;
+            case "DuckOpUUID":
+                _nd_ctx.duck_journal_url = "http://" + window.location.hostname + ":8090/ui/duckjournal/" + msg.uuid;
             default:
                 break;
         }
