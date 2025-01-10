@@ -119,6 +119,12 @@ interface DataChange {
     cache_key:string;
 }
 
+interface DuckOp {
+    nd_type:string;
+    db_type:string;
+    sql:string;
+}
+
 
 function dispatch_render(ctx:NDContext, w: Widget): void {
     // Attempt to resolve rname to rfunc if not initialized
@@ -338,7 +344,8 @@ class NDContext {
     clamp: boolean = false;
     anyw: any | null = null;
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
-    data_change: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
+    data_change_msg: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
+    duck_op_msg: DuckOp = {nd_type:"DuckOp", db_type:"", sql:""};
     cache_ref:Cached<any>|undefined;
     canvas: HTMLCanvasElement | null = null;
     // initial gui canvas top, left, right, bottom, width, height
@@ -355,6 +362,8 @@ class NDContext {
     // will only become !== null if we have module JS for Duck
     // instantiation in index.html
     duck_module:any|null = null;
+    pending_websock_msgs:any[] = [];
+    
         
     
     constructor() {
@@ -389,28 +398,6 @@ class NDContext {
         this.websock.onopen = this.on_open;
         this.websock.onclose = this.on_close;
         this.websock.onmessage = this.update;
-        /**
-        // Pull cache init from server
-        const config_response = await window.fetch(config_url);
-        const config_json = await config_response.text();
-        console.log('NDContext.init: ' + config_json);
-        let config_init = await JSON.parse(config_json);
-        for (let ckey in config_init) {
-            // Extract the type and instance correct <T> for CacheAccess
-            // https://stackoverflow.com/questions/35546421/how-to-get-a-variable-type-in-typescript
-            let val = config_init[ckey];
-            let val_type = typeof val;  // JS type
-            if (typeof val === "number") {
-                this.config.set(ckey, new Cached<number>(this, val, ckey));
-            }
-            else if (typeof val === "string") {
-                this.config.set(ckey, new Cached<string>(this, val, ckey));
-            }
-            else {
-                this.config.set(ckey, new Cached<any>(this, val, ckey));
-            }
-            console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
-        } */
         // Pull cache init from server
         const cache_response = await window.fetch(data_url);
         const cache_json = await cache_response.text();
@@ -492,21 +479,44 @@ class NDContext {
                 break;
         }
     }
+    
+    websock_send(msg:string): void {
+        if (this.websock !== null) {
+            // NB need the ? after websock as TS errors despite the
+            // if clause with TS2531: Object is possibly 'null'
+            // on this.websock.send()
+            this.pending_websock_msgs.forEach(m => this.websock?.send(m));
+            this.pending_websock_msgs.length = 0;
+            this.websock.send(msg);
+        }
+        else {
+            this.pending_websock_msgs.push(msg);
+            console.log('NDContext.websock_send: pending msg count ' + this.pending_websock_msgs.length);
+        }
+    }
 
+    // see Cached<T> caching logic for comments on why atomics
+    // and non atomics are handled differently
     notify_server_atomic(accessor:Cached<any>, new_val:any): void {
-        this.data_change.old_value = accessor.value;
-        this.data_change.new_value = new_val;
-        this.data_change.cache_key = accessor.cache_key;
-        this.websock!.send(JSON.stringify(this.data_change));
+        this.data_change_msg.old_value = accessor.value;
+        this.data_change_msg.new_value = new_val;
+        this.data_change_msg.cache_key = accessor.cache_key;
+        this.websock_send(JSON.stringify(this.data_change_msg));
     }
 
     notify_server_any(accessor:Cached<any>, old_val:any): void {
-        this.data_change.new_value = accessor.value;
-        this.data_change.old_value = old_val;
-        this.data_change.cache_key = accessor.cache_key;
-        this.websock!.send(JSON.stringify(this.data_change));
+        this.data_change_msg.new_value = accessor.value;
+        this.data_change_msg.old_value = old_val;
+        this.data_change_msg.cache_key = accessor.cache_key;
+        this.websock_send(JSON.stringify(this.data_change_msg));
     }
-       
+    
+    notify_server_duckop(db_request:any): void {
+        this.duck_op_msg.db_type = db_request.nd_type;
+        this.duck_op_msg.sql = db_request.sql;
+        this.websock_send(JSON.stringify(this.duck_op_msg));
+    }
+    
     check_duck_module(): void {
         // Contingent DDBW init: duck_handler only goes to a real value
         // if index.html included the DuckDB init embedded module.
@@ -527,6 +537,7 @@ class NDContext {
             console.error("NDContext.duck_dispatch: no DB connection to dispatch ", db_request);
         }
         this.duck_module.postMessage(db_request);
+        this.notify_server_duckop(db_request);
     }
     
     on_duck_event(event:any): void {
@@ -642,30 +653,14 @@ async function _init(): Promise<void> {
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
     if (typeof(window) !== "undefined") {
-        /**
-        const output: HTMLElement = document.getElementById("nodom_gui_div") || document.body;
-        const canvas: HTMLCanvasElement = document.createElement("canvas");
-        output.appendChild(canvas);
-        canvas.id = "nodom_gui_canvas";
-        canvas.tabIndex = 1;
-        canvas.style.position = _nd_ctx.gui_position;
-        canvas.style.left = _nd_ctx.gui_left;
-        canvas.style.right = _nd_ctx.gui_right;
-        canvas.style.top = _nd_ctx.gui_top;
-        canvas.style.bottom = _nd_ctx.gui_bottom;
-        canvas.style.width =  _nd_ctx.gui_width;
-        canvas.style.height = _nd_ctx.gui_height;
-        canvas.style.userSelect = "none";
-        canvas.style.zIndex = "0"; // duck shell canvas will flip between -1/1
-        ImGui_Impl.Init(canvas); */
         ImGui_Impl.Init(_nd_ctx.create_canvas());
     } else {
         ImGui_Impl.Init(null);
     }
     
     if (typeof(window) !== "undefined") {
-        // all the heavyweight init should be done here, before we kick
-        // off the animation loop...
+        // all the heavyweight init should be done here, before the animation loop starts
+        // TODO: exception handling to raise modal dialog on connection failure
         await _nd_ctx.init();
         window.requestAnimationFrame(_loop);
     }
@@ -686,9 +681,8 @@ function _loop(time: number): void {
 
     // Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()!
     // You can browse its code to learn more about Dear ImGui!).
-    if (!done && show_demo_window) {
-        done = /*ImGui.*/ShowDemoWindow((value = show_demo_window) => show_demo_window = value);
-    }
+    if (show_demo_window)
+        ShowDemoWindow((value = show_demo_window) => show_demo_window = value);
 
     _nd_ctx.render();   
 
