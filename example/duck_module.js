@@ -54,30 +54,33 @@ async function exec_duck_db_query(sql) {
         console.log("duck_module:reconnecting...");
         duck_conn = await duck_db.connect();
     }
+    console.log("exec_duck_dq_query: " + sql);
     const arrow_table = await duck_conn.query(sql);
     return arrow_table;
 }
 
-async function load_parquet(url) {
-    if (!duck_db) {
-        console.error("duck_module:DuckDB-Wasm not initialized");
-        return;
-    }
-    if (!duck_conn) {
-        console.log("duck_module:reconnecting...");
-        duck_conn = await duck_db.connect();
-    }
-    const arrow_table = await duck_conn.query(sql);
-    return arrow_table;
-}
+var summary_request = function(tbl) {
+    return {nd_type: "Summarize", sql: "summarize select * from " + tbl, table: tbl};
+};
 
 self.onmessage = async (event) => {
     let arrow_table = null;
     const nd_db_request = event.data;
     switch (nd_db_request.nd_type) {
         case "ParquetScan":
-            arrow_table = await exec_duck_db_query(nd_db_request.sql);
-            postMessage({nd_type:"ParquetScanResult", arrow_table:arrow_table});
+            // NB result set from "CREATE TABLE <tbl> as select * from parquet_scan([...])"
+            // is None on success
+            await exec_duck_db_query(nd_db_request.sql);
+            // postMessage({nd_type:"ParquetScanResult", table:nd_db_request.table});
+            console.log("duck_module: ParquetScan done for " + nd_db_request.table);
+            // request a table summary: this will be quick as parquet metadata
+            // will have provided this, so no real searches...
+            let summary_req = summary_request(nd_db_request.table);
+            console.log("duck_module: ParquetScan request summary: " + summary_req);
+            arrow_table = await exec_duck_db_query(summary_req.sql);
+            result_msg = {nd_type:"ParquetScanResult", table:nd_db_request.table, arrow_table:arrow_table};
+            postMessage(result_msg);
+            console.log("duck_module: ParquetScanResult " + result_msg);
             break;
         case "Query":
             arrow_table = await exec_duck_db_query(nd_db_request.sql);
