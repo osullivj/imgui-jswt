@@ -4,11 +4,11 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script type="text/javascript" src="../node_modules/@flyover/system/build/system.js"></script>
         <script type="text/javascript" src="system.config.js"></script>
-
+{% if duck_db %}
         <!-- rm for quicker page loads if not using DuckDB in your app
              Note use of defer so this execs when page load is complete -->
         <script type="module" src="./duck_module.js" defer></script>
-        
+{% end %}
         <!-- the main point of entry for NoDOM: executes on main thread -->
         <script type="text/javascript">
             System.import("main").then( 
