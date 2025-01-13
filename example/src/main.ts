@@ -484,7 +484,7 @@ class NDContext {
                 _nd_ctx.duck_dispatch(msg);
                 break;
             case "DuckOpUUID":
-                _nd_ctx.duck_journal_url = "http://" + window.location.hostname + ":8090/ui/duckjournal/" + msg.uuid;
+                _nd_ctx.duck_journal_url = nd_url(window.location, "/ui/duckjournal/" + msg.uuid);
             default:
                 break;
         }
