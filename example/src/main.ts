@@ -301,6 +301,10 @@ function render_date_picker(ctx:NDContext, w: Widget): void {
     }
 }
 
+let nd_url = (locn:Location, upath:string): string => {
+    return locn.protocol + "//" + locn.hostname + ":" + locn.port + upath;
+};
+
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
 // Use websocket-ts for websock via "npm install websocket-ts"
@@ -394,9 +398,9 @@ class NDContext {
         
         // Some standard URLs recognised on the server side
         // TODO: config port 8090
-        let websock_url = "ws://" + window.location.hostname + ":" + window.location.port + "/api/websock";
-        let layout_url = "http://" + window.location.hostname + ":" + window.location.port + "/api/layout";
-        let data_url = "http://" + window.location.hostname + ":" + window.location.port + "/api/data";
+        let websock_url = nd_url(window.location, "/api/websock");
+        let layout_url = nd_url(window.location, "/api/layout");
+        let data_url = nd_url(window.location, "/api/data");
         // Initialize WebSocket with buffering and 1s reconnection delay
         this.websock = new WebSocket(websock_url);
         this.websock.onopen = this.on_open;
@@ -562,7 +566,7 @@ class NDContext {
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 let arrow_table:any = nd_db_request.arrow_table;
-                console.log(`NDContext.on_duck_event: QueryResult rows:${arrow_table.numRows}, cols:${arrow_table.numCols}`);
+                console.log("NDContext.on_duck_event: QueryResult rows:" + arrow_table.numRows + " cols:" + arrow_table.numCols);
                 break;
             case "DuckInstance":
                 // duck_module.js has created the duck_db instance

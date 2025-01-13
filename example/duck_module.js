@@ -60,7 +60,7 @@ async function exec_duck_db_query(sql) {
 }
 
 var summary_request = function(tbl) {
-    return {nd_type: "Summarize", sql: "summarize select * from " + tbl, table: tbl};
+    return {nd_type: "Summarize", sql: "summarize select * from " + tbl + ";", table: tbl};
 };
 
 self.onmessage = async (event) => {
@@ -71,23 +71,20 @@ self.onmessage = async (event) => {
             // NB result set from "CREATE TABLE <tbl> as select * from parquet_scan([...])"
             // is None on success
             await exec_duck_db_query(nd_db_request.sql);
-            // postMessage({nd_type:"ParquetScanResult", table:nd_db_request.table});
             console.log("duck_module: ParquetScan done for " + nd_db_request.table);
             // request a table summary: this will be quick as parquet metadata
             // will have provided this, so no real searches...
             let summary_req = summary_request(nd_db_request.table);
-            console.log("duck_module: ParquetScan request summary: " + summary_req);
-            arrow_table = await exec_duck_db_query(summary_req.sql);
-            result_msg = {nd_type:"ParquetScanResult", table:nd_db_request.table, arrow_table:arrow_table};
-            postMessage(result_msg);
-            console.log("duck_module: ParquetScanResult " + result_msg);
+            console.log("duck_module: ParquetScanSummary SQL: " + summary_req.sql);
+            // NB this is the scan summary table, not the scanned table itself!
+            arrow_table = await exec_duck_db_query(summary_req.sql);           
+            console.log("duck_module: ParquetScanResult:", arrow_table.table);
+            postMessage({nd_type:"ParquetScanResult", table:nd_db_request.table, arrow_table:arrow_table});
             break;
         case "Query":
             arrow_table = await exec_duck_db_query(nd_db_request.sql);
-            const cols = arrow_table.schema.fields.map((field) => field.name);
-            console.log("duck_module cols:", cols);
-            const rows = arrow_table.toArray();
-            console.log("duck_module rows:", rows);
+            const cols = arrow_table.numCols;
+            console.log("duck_module cols:", arrow_table.numCols + " rows:" + arrow_table.numRows);
             // postMessage({rtype:"query_result", schema:cols, row_count:arrow_table.numRows, query:nd_db_request.payload});
             postMessage({nd_type:"QueryResult", arrow_table:arrow_table});
             break;
