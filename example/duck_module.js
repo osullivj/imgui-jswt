@@ -63,6 +63,16 @@ var summary_request = function(tbl) {
     return {nd_type: "Summarize", sql: "summarize select * from " + tbl + ";", table: tbl};
 };
 
+function materialize(results, qid, rtype) {
+    return {
+        query_id:qid,
+        result_type:rtype,
+        rows:results.toArray().map(Object.fromEntries),
+        names:results.schema.fields.map((d) => d.name),
+        types:results.schema.fields.map((d) => d.type)
+    }
+}
+
 self.onmessage = async (event) => {
     let arrow_table = null;
     const nd_db_request = event.data;
@@ -71,22 +81,24 @@ self.onmessage = async (event) => {
             // NB result set from "CREATE TABLE <tbl> as select * from parquet_scan([...])"
             // is None on success
             await exec_duck_db_query(nd_db_request.sql);
-            console.log("duck_module: ParquetScan done for " + nd_db_request.table);
+            console.log("duck_module: ParquetScan done for " + nd_db_request.query_id);
             // request a table summary: this will be quick as parquet metadata
             // will have provided this, so no real searches...
-            let summary_req = summary_request(nd_db_request.table);
+            let summary_req = summary_request(nd_db_request.query_id);
             console.log("duck_module: ParquetScanSummary SQL: " + summary_req.sql);
             // NB this is the scan summary table, not the scanned table itself!
-            arrow_table = await exec_duck_db_query(summary_req.sql);           
-            console.log("duck_module: ParquetScanResult:", arrow_table.table);
-            postMessage({nd_type:"ParquetScanResult", table:nd_db_request.table, arrow_table:arrow_table});
+            arrow_table = await exec_duck_db_query(summary_req.sql);
+            let sxfer_obj = materialize(arrow_table, nd_db_request.query_id, "summary");
+            console.log("duck_module: ParquetScanResult: ", sxfer_obj.query_id);
+            let pq_scan_result = {nd_type:"ParquetScanResult", result:sxfer_obj};
+            postMessage(pq_scan_result); // , transfer=[pq_scan_result]);
             break;
         case "Query":
             arrow_table = await exec_duck_db_query(nd_db_request.sql);
-            const cols = arrow_table.numCols;
-            console.log("duck_module cols:", arrow_table.numCols + " rows:" + arrow_table.numRows);
-            // postMessage({rtype:"query_result", schema:cols, row_count:arrow_table.numRows, query:nd_db_request.payload});
-            postMessage({nd_type:"QueryResult", arrow_table:arrow_table});
+            let qxfer_obj = materialize(arrow_table, nd_db_request.query_id, "select");
+            console.log("duck_module: QueryResult: ", qxfer_obj.query_id);
+            let query_result = {nd_type:"QueryResult", result:qxfer_obj};
+            postMessage(query_result); // , transfer=[query_result]);
             break;
         case "QueryResult":
         case "ParquetScanResult":

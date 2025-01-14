@@ -125,7 +125,6 @@ interface DuckOp {
     sql:string;
 }
 
-
 function dispatch_render(ctx:NDContext, w: Widget): void {
     // Attempt to resolve rname to rfunc if not initialized
     if (!w.rfunc) {
@@ -371,7 +370,8 @@ class NDContext {
     // instantiation in index.html
     duck_module:any|null = null;
     pending_websock_msgs:any[] = [];
-    
+    // DuckDB summary tables
+    duck_summary: Map<string, any> = new Map<string, any>();
         
     
     constructor() {
@@ -563,10 +563,15 @@ class NDContext {
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 break;
             case "ParquetScanResult":
+                _nd_ctx.db_status_color = _nd_ctx.green;
+                if (nd_db_request.result.mtype === "summary") {
+                    _nd_ctx.duck_summary.set(nd_db_request.result.query_id, nd_db_request.result);
+                }
+                console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
-                let arrow_table:any = nd_db_request.arrow_table;
-                console.log("NDContext.on_duck_event: QueryResult rows:" + arrow_table.numRows + " cols:" + arrow_table.numCols);
+                console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
                 break;
             case "DuckInstance":
                 // duck_module.js has created the duck_db instance
