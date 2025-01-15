@@ -189,17 +189,28 @@ function render_input_int(ctx:NDContext, w: Widget): void {
     }
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     const accessor = cache_access<number>(ctx, cache_name);
+    let label = w.cspec["label" as keyof CacheMap] as string;
     // NB when InputInt invokes accessor.access(new_int_val) to set the int in the cache
     // accessor.access() will invoke ctx.notify_server()
-    ImGui.InputInt(cache_name, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
+    ImGui.InputInt(label, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
 }
 
 
-function render_label(ctx:NDContext, w: Widget): void { /**
-    let cache_name = w.cspec["cname" as keyof CacheMap] as string;
-    let init_val = ctx.cache[cache_name as keyof CacheMap] as string;
-    let cache_accessor = accessor_factory<string>(ctx, cache_name, init_val);
-    ImGui.LabelText(cache_name, cache_accessor.access); */
+function render_combo(ctx:NDContext, w: Widget): void {
+    let label = w.cspec["label" as keyof CacheMap] as string;    
+    let list_ckey = w.cspec["cname" as keyof CacheMap] as string;
+    let index_ckey = w.cspec["index" as keyof CacheMap] as string;
+    const list_accessor = cache_access<any>(ctx, list_ckey);
+    const index_accessor = cache_access<number>(ctx, index_ckey);
+    // NB when InputInt invokes accessor.access(new_int_val) to set the int in the cache
+    // accessor.access() will invoke ctx.notify_server()
+    ImGui.Combo(label, index_accessor.access, list_accessor.value, ImGui.ARRAYSIZE(list_accessor.value.length));
+}
+
+
+function render_text(ctx:NDContext, w: Widget): void {
+    let rtext = w.cspec["text" as keyof CacheMap] as string;
+    ImGui.Text(rtext);
 }
 
 
@@ -304,6 +315,7 @@ let nd_url = (locn:Location, upath:string): string => {
     return locn.protocol + "//" + locn.hostname + ":" + locn.port + upath;
 };
 
+
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
 // Use websocket-ts for websock via "npm install websocket-ts"
@@ -322,11 +334,12 @@ class NDContext {
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
             ["Home", render_home],
             ["InputInt", render_input_int],
-            ["Label", render_label],
+            ["Combo", render_combo],
             ["Separator", render_separator],
             ["Footer", render_footer],
             ["SameLine", render_same_line],
             ["DatePicker", render_date_picker],
+            ["Text", render_text],
         ]);      // render functions
         
     // consts
@@ -345,6 +358,7 @@ class NDContext {
     // URLs
     duck_journal_url:string = "UNINITIALIZED";
     // working vars so we can avoid the use of locals in render funcs
+    // NB only one thread is touching this stuff!
     step: number = 1;
     step_fast: number = 1;
     flags: number = 0;
@@ -422,7 +436,7 @@ class NDContext {
             else if (typeof val === "string") {
                 this.cache.set(ckey, new Cached<string>(this, val, ckey));
             }
-            else {
+            else { 
                 this.cache.set(ckey, new Cached<any>(this, val, ckey));
             }
             console.log('NDContext.init: '+ckey+':'+val+':'+val_type);             
