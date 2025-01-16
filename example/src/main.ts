@@ -224,6 +224,12 @@ function render_same_line(ctx:NDContext, w: Widget): void {
     ImGui.SameLine();
 }
 
+function render_button(ctx:NDContext, w: Widget): void {
+    let btext = w.cspec["text" as keyof CacheMap] as string;
+    if (ImGui.Button(btext)) {
+        console.log("render_button: " + btext);
+    }
+}
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
@@ -341,6 +347,7 @@ class NDContext {
             ["SameLine", render_same_line],
             ["DatePicker", render_date_picker],
             ["Text", render_text],
+            ["Button", render_button],
         ]);      // render functions
         
     // consts
