@@ -576,8 +576,9 @@ class NDContext {
                 break;
             case "ParquetScanResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
-                if (nd_db_request.result.mtype === "summary") {
-                    _nd_ctx.duck_summary.set(nd_db_request.result.query_id, nd_db_request.result);
+                if (nd_db_request.result.result_type === "summary") {
+                    _nd_ctx.cache.set("db.summary."+nd_db_request.result.query_id,
+                                        new Cached<any>(_nd_ctx, nd_db_request.result));
                 }
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
                 break;
