@@ -58,6 +58,7 @@ function default_render_func(ctx:NDContext, w: Widget): void {
 
 // Used for ingesting layout JSON
 interface Widget {
+    widget_id?:string;  // mandatory for non child layout elements
     rname:string;
     rfunc?:RenderFunc;
     cspec:CacheMap;
@@ -226,10 +227,45 @@ function render_same_line(ctx:NDContext, w: Widget): void {
 
 function render_button(ctx:NDContext, w: Widget): void {
     let btext = w.cspec["text" as keyof CacheMap] as string;
+
     if (ImGui.Button(btext)) {
-        console.log("render_button: " + btext);
+        ctx.action_dispatch(w.cspec);
     }
 }
+
+
+function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
+    let title = w.cspec["title" as keyof CacheMap] as string;
+    let cname = w.cspec["cname" as keyof CacheMap] as string;
+    console.log("render_duck_table_summary_modal: cname:" + cname + ", title:" + title);
+    ImGui.OpenPopup(title);
+
+    // Always center this window when appearing
+    const center = ImGui.GetMainViewport().GetCenter();
+    ImGui.SetNextWindowPos(center, ImGui.Cond.Appearing, new ImGui.Vec2(0.5, 0.5));
+
+    if (ImGui.BeginPopupModal(title, null, ImGui.WindowFlags.AlwaysAutoResize)) {
+        ImGui.Text("PLACEHOLDER");
+        ImGui.Separator();
+
+        // Note the _nd_ctx.stack.pop() invocations when
+        // OK or Cancel are shown. Because we're a modal,
+        // we know we're now a Home child, so we must have
+        // been pushed onto the stack...
+        if (ImGui.Button("OK", new ImGui.Vec2(120, 0))) {
+            ImGui.CloseCurrentPopup();
+            _nd_ctx.stack.pop();
+        }
+        ImGui.SetItemDefaultFocus();
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new ImGui.Vec2(120, 0))) { 
+            ImGui.CloseCurrentPopup();
+            _nd_ctx.stack.pop();
+        }
+        ImGui.EndPopup();
+    }
+}
+
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
@@ -331,12 +367,9 @@ class NDContext {
     websock: WebSocket|null = null;             // Backe end connection
     layout: Widget[] = [];                      // as served by /api/layout 
     stack: Widget[] = [];                       // widgets currently rendering
-  
-    // config from backend
-    // config: CachedAnyMap = new Map<string,Cached<any>>();   
+    pushable: Map<string, Widget> = new Map<string, Widget>();
     // data from backend
     cache: CachedAnyMap = new Map<string,Cached<any>>();   
-    
     // Map of render functions reffed in layouts
     rfmap: Map<string, RenderFunc> = new Map<string, RenderFunc>([
             ["Home", render_home],
@@ -348,8 +381,8 @@ class NDContext {
             ["DatePicker", render_date_picker],
             ["Text", render_text],
             ["Button", render_button],
-        ]);      // render functions
-        
+            ["DuckTableSummaryModal", render_duck_table_summary_modal],
+        ]);      // render functions    
     // consts
     update_interval: number = 50;
     init_interval: number = 1000;
@@ -455,6 +488,7 @@ class NDContext {
         const layout_json = await layout_response.text();
         console.log('NDContext.init: ' + layout_json);
         this.layout = JSON.parse(layout_json) as Array<Widget>;
+        this.layout.forEach( (w) => {if (w.widget_id) this.pushable.set(w.widget_id, w);});
         // Load font: TODO module JS script font config
         console.log('NDContext.init: loading fonts');
         this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
@@ -494,7 +528,6 @@ class NDContext {
         // the NDContext instance, it's the websock
         console.log('NDContext.on_websock_message: ' + ev.data);
         let msg:any = JSON.parse(ev.data);
-        let cache:CachedAnyMap = _nd_ctx.cache;
         switch (msg.nd_type) {
             case "DataChange":
                 _nd_ctx.on_data_change(msg);
@@ -584,7 +617,7 @@ class NDContext {
             case "ParquetScanResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 if (nd_db_request.result.result_type === "summary") {
-                    _nd_ctx.cache.set("db.summary."+nd_db_request.result.query_id,
+                    _nd_ctx.cache.set("db_summary_"+nd_db_request.result.query_id,
                                         new Cached<any>(_nd_ctx, nd_db_request.result));
                 }
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
@@ -604,7 +637,33 @@ class NDContext {
         }
 
     }
-
+    
+    action_dispatch(cspec:CacheMap): void {
+        let action = cspec["action" as keyof CacheMap] as string;
+        switch (action) {
+            case "ParquetScan":
+                let sql_cache_key = cspec["sql" as keyof CacheMap] as string;
+                let qid_cache_key = cspec["query_id" as keyof CacheMap] as string;
+                const sql_accessor = cache_access<string>(this, sql_cache_key);
+                const qid_accessor = cache_access<string>(this, qid_cache_key);
+                this.duck_dispatch( {
+                    nd_type:action,
+                    sql:sql_accessor.value,
+                    query_id:qid_accessor.value,
+                });
+                break;
+            default:
+                // is it a pushable widget?
+                if (this.pushable.has(action)) {
+                    this.stack.push(this.pushable.get(action) as Widget);
+                }
+                else {
+                    console.error("NDContext.action_dispatch: unrecognised " + action);
+                }
+                break;
+        }
+    }
+    
     render(): void {
         // unfortunately we have to poll for window.__nodom__ changes
         // as shell_module.js cannot postMessage to here until we've
