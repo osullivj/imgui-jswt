@@ -237,6 +237,13 @@ function render_button(ctx:NDContext, w: Widget): void {
 function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
     let title = w.cspec["title" as keyof CacheMap] as string;
     let cname = w.cspec["cname" as keyof CacheMap] as string;
+    if ("flags" in w.cspec) {
+        // See src/imgui.ts:InputTextFlags
+        ctx.flags = w.cspec["table_flags" as keyof CacheMap] as number;
+    }
+    else {
+        ctx.flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg;
+    }
     console.log("render_duck_table_summary_modal: cname:" + cname + ", title:" + title);
     ImGui.OpenPopup(title);
 
@@ -245,7 +252,29 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
     ImGui.SetNextWindowPos(center, ImGui.Cond.Appearing, new ImGui.Vec2(0.5, 0.5));
 
     if (ImGui.BeginPopupModal(title, null, ImGui.WindowFlags.AlwaysAutoResize)) {
-        ImGui.Text("PLACEHOLDER");
+        const summary_accessor = cache_access<any>(ctx, cname);
+
+        // 12 cols in summary
+        if (ImGui.BeginTable(cname, summary_accessor.value.names.length, ctx.flags)) {
+            for (let col_index = 0; col_index < summary_accessor.value.names.length; col_index++) {
+                ImGui.TableSetupColumn(summary_accessor.value.names[col_index]);
+            }
+            ImGui.TableHeadersRow();
+
+            for (let row_index = 0; row_index < summary_accessor.value.rows.length; row_index++) {
+                let row = summary_accessor.value.rows[row_index];
+                ImGui.TableNextRow();
+                for (let col_index = 0; col_index < summary_accessor.value.names.length; col_index++) {
+                    ImGui.TableSetColumnIndex(col_index);
+                    let property:string = summary_accessor.value.names[col_index];
+                    let cell:string = row[property] as string;
+                    ImGui.TextUnformatted(cell);
+                }
+            }
+            ImGui.EndTable();
+        }
+        
+        // ImGui.Text("PLACEHOLDER");
         ImGui.Separator();
 
         // Note the _nd_ctx.stack.pop() invocations when
