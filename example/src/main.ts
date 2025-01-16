@@ -190,6 +190,7 @@ function render_input_int(ctx:NDContext, w: Widget): void {
     let cache_name = w.cspec["cname" as keyof CacheMap] as string;
     const accessor = cache_access<number>(ctx, cache_name);
     let label = w.cspec["label" as keyof CacheMap] as string;
+    if (label === undefined) label = cache_name;
     // NB when InputInt invokes accessor.access(new_int_val) to set the int in the cache
     // accessor.access() will invoke ctx.notify_server()
     ImGui.InputInt(label, accessor.access, ctx.step, ctx.step_fast, ctx.flags);
@@ -467,10 +468,7 @@ class NDContext {
         console.log("Websock closed");
     }
     
-    on_data_change(msg:any): void {
-        // TODO: add check on new_value and
-        // old_value to spot type changes
-        // NB 
+    on_data_change(msg:DataChange): void {
         if (typeof msg.new_value === "number") {
             const accessor = cache_access<number>(_nd_ctx, msg.cache_key);
             accessor.value = msg.new_value;
