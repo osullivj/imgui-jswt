@@ -225,6 +225,7 @@ function render_same_line(ctx:NDContext, w: Widget): void {
     ImGui.SameLine();
 }
 
+
 function render_button(ctx:NDContext, w: Widget): void {
     let btext = w.cspec["text" as keyof CacheMap] as string;
 
@@ -312,6 +313,30 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
         if (ImGui.Button("Cancel", new ImGui.Vec2(120, 0))) { 
             ImGui.CloseCurrentPopup();
             _nd_ctx.stack.pop();
+        }
+        ImGui.EndPopup();
+    }
+}
+
+
+function render_duck_parquet_loading_modal(ctx:NDContext, w: Widget): void {
+    let title = w.cspec["title" as keyof CacheMap] as string;
+    let cname = w.cspec["cname" as keyof CacheMap] as string;   // scan_urls in cache
+    console.log("render_duck_parquet_loading_modal: cname:" + cname + ", title:" + title);
+    ImGui.OpenPopup(title);
+
+    // Always center this window when appearing
+    const center = ImGui.GetMainViewport().GetCenter();
+    ImGui.SetNextWindowPos(center, ImGui.Cond.Appearing, new ImGui.Vec2(0.5, 0.5));
+
+    if (ImGui.BeginPopupModal(title, null, ImGui.WindowFlags.AlwaysAutoResize)) {
+        const url_list_accessor = cache_access<any>(ctx, cname);
+        for (let url_index = 0; url_index < url_list_accessor.value.length; url_index++) {
+            ImGui.Text(url_list_accessor.value[url_index]);
+        }
+        if (!ImGui.Spinner("spinner", 15, 6, 0)) {
+            // TODO: why doesn't spinner work?
+            console.error("render_duck_parquet_loading_modal: spinner fail");
         }
         ImGui.EndPopup();
     }
@@ -433,6 +458,7 @@ class NDContext {
             ["Text", render_text],
             ["Button", render_button],
             ["DuckTableSummaryModal", render_duck_table_summary_modal],
+            ["DuckParquetLoadingModal", render_duck_parquet_loading_modal],
         ]);      // render functions    
     // consts
     update_interval: number = 50;
@@ -660,16 +686,22 @@ class NDContext {
         console.log('NDContext.on_duck_event: ', event.data);
         const nd_db_request = event.data;
         switch (nd_db_request.nd_type) {
-            // cases that we send: silently ignore
             case "ParquetScan":
             case "Query":
-                _nd_ctx.db_status_color = _nd_ctx.green;
+                // go amber while query or scan is in progress
+                _nd_ctx.db_status_color = _nd_ctx.amber;
                 break;
             case "ParquetScanResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 if (nd_db_request.result.result_type === "summary") {
                     _nd_ctx.cache.set("db_summary_"+nd_db_request.result.query_id,
                                         new Cached<any>(_nd_ctx, nd_db_request.result));
+                }
+                if (_nd_ctx.stack.length > 1) {
+                    let w = _nd_ctx.stack.pop();
+                    if (w?.rname !== "DuckParquetLoadingModal") {
+                        console.error("NDContext.on_duck_event: bad pop: " + w);
+                    }
                 }
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
                 break;
@@ -695,6 +727,7 @@ class NDContext {
             case "ParquetScan":
                 let sql_cache_key = cspec["sql" as keyof CacheMap] as string;
                 let qid_cache_key = cspec["query_id" as keyof CacheMap] as string;
+                let modal_id = cspec["modal" as keyof CacheMap] as string;
                 const sql_accessor = cache_access<string>(this, sql_cache_key);
                 const qid_accessor = cache_access<string>(this, qid_cache_key);
                 this.duck_dispatch( {
@@ -702,9 +735,14 @@ class NDContext {
                     sql:sql_accessor.value,
                     query_id:qid_accessor.value,
                 });
+                // if we have a widget_id='parquet_loading_modal' in layout raise it
+                if (modal_id && this.pushable.has(modal_id)) {
+                    this.stack.push(this.pushable.get(modal_id) as Widget);
+                }
                 break;
             default:
                 // is it a pushable widget?
+                // NB this is only for self popping modals like DuckTableSummaryModal
                 if (this.pushable.has(action)) {
                     this.stack.push(this.pushable.get(action) as Widget);
                 }
