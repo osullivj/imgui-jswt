@@ -35,6 +35,12 @@ duck_db = new duck.AsyncDuckDB(logger, db_worker);
 await duck_db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 // revoke the object url now no longer needed
 URL.revokeObjectURL(db_worker_url);
+await duck_db.open({
+    query: { 
+        // castBigIntToDouble: true, 
+        castDecimalToDouble: true 
+    },
+});
 console.log("duck_module.js: DuckDB instantiated ", db_worker_url);
 // main.ts uses __nodom__
 window.__nodom__ = {duck_module:self, duck_db:duck_db};

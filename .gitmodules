@@ -4,3 +4,6 @@
 [submodule "datepicker"]
 	path = datepicker
 	url = https://github.com/osullivj/ImGuiDatePicker.git
+[submodule "imspinner"]
+	path = imspinner
+	url = https://github.com/dalerank/imspinner.git
