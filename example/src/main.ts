@@ -275,15 +275,18 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
                             case 5: // bigint
                                 ImGui.TextUnformatted(cell.toString());
                                 break;
-                            case 7: // Uint32Array
+                            case 3: // decimal as double
                                 ImGui.TextUnformatted(cell.toString());
+                                break;
+                            case 7: // decimal as Uint32Array
+                                console.error("render_duck_table_summary_modal: decimal at row/col: " + row_index + "/" + col_index);
                                 break;
                             default:
                                 try {
                                     ImGui.TextUnformatted(cell as string);
                                 }
                                 catch (error) {
-                                    console.error(error);
+                                    console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
                                 }
                                 break;
                         }                        
