@@ -267,8 +267,27 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
                 for (let col_index = 0; col_index < summary_accessor.value.names.length; col_index++) {
                     ImGui.TableSetColumnIndex(col_index);
                     let property:string = summary_accessor.value.names[col_index];
-                    let cell:string = row[property] as string;
-                    ImGui.TextUnformatted(cell);
+                    let cell = row[property] as unknown;
+                    let ctype = summary_accessor.value.types[col_index];
+                    if (cell) {
+                        switch (ctype.typeId) {
+                            case 2: // BIGINT
+                            case 5: // bigint
+                                ImGui.TextUnformatted(cell.toString());
+                                break;
+                            case 7: // Uint32Array
+                                ImGui.TextUnformatted(cell.toString());
+                                break;
+                            default:
+                                try {
+                                    ImGui.TextUnformatted(cell as string);
+                                }
+                                catch (error) {
+                                    console.error(error);
+                                }
+                                break;
+                        }                        
+                    }
                 }
             }
             ImGui.EndTable();
