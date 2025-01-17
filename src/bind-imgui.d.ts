@@ -2062,4 +2062,5 @@ export interface Module extends Emscripten.EmscriptenModule {
     MemFree(ptr: any): void;
     
     DatePicker(label: string, v: ImTuple3<number>, tsz: ImTuple2<number>, clamp:boolean, flags: ImGuiTableFlags): boolean;
+    Spinner(label: string, radius:number, thickness:number, color:number): boolean;
 }

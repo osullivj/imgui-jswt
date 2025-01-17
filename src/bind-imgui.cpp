@@ -3026,4 +3026,9 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("DatePicker", FUNCTION(bool, (std::string label, emscripten::val ymd, emscripten::val tsz, bool clamp, ImGuiTableFlags flags), {
         return ImGui::DatePicker(label.c_str(), access_value<int, 3>(ymd), access_value<float, 2>(tsz), clamp, flags);
     }));
+    
+    // https://github.com/osullivj/ImGuiDatePicker
+    emscripten::function("Spinner", FUNCTION(bool, (std::string label, float radius, int thickness, int col), {
+        return ImGui::Spinner(label.c_str(), radius, thickness, col);
+    }));
 }

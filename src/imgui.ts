@@ -4559,3 +4559,8 @@ export function DatePicker(label: string, ymd: Bind.ImTuple3<number>, table_size
     export_Vector3(_ymd, ymd);
     return ret;
 }
+
+export function Spinner(label: string, radius:number, thickness:number, color:number): boolean {
+    const ret = bind.Spinner(label, radius, thickness, color);
+    return ret;
+}
