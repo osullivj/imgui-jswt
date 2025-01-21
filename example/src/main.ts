@@ -306,13 +306,13 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
         // been pushed onto the stack...
         if (ImGui.Button("OK", new ImGui.Vec2(120, 0))) {
             ImGui.CloseCurrentPopup();
-            _nd_ctx.stack.pop();
+            _nd_ctx.pop("DuckTableSummaryModal");
         }
         ImGui.SetItemDefaultFocus();
         ImGui.SameLine();
         if (ImGui.Button("Cancel", new ImGui.Vec2(120, 0))) { 
             ImGui.CloseCurrentPopup();
-            _nd_ctx.stack.pop();
+            _nd_ctx.pop("DuckTableSummaryModal");
         }
         ImGui.EndPopup();
     }
@@ -334,10 +334,11 @@ function render_duck_parquet_loading_modal(ctx:NDContext, w: Widget): void {
         for (let url_index = 0; url_index < url_list_accessor.value.length; url_index++) {
             ImGui.Text(url_list_accessor.value[url_index]);
         }
+        /** TODO: debug spinner
         if (!ImGui.Spinner("spinner", 15, 6, 0)) {
             // TODO: why doesn't spinner work?
             console.error("render_duck_parquet_loading_modal: spinner fail");
-        }
+        } */
         ImGui.EndPopup();
     }
 }
@@ -430,6 +431,63 @@ function render_date_picker(ctx:NDContext, w: Widget): void {
     }
 }
 
+
+function render_table(ctx:NDContext, w: Widget): void {
+    let title = w.cspec["title" as keyof CacheMap] as string;
+    let cname = w.cspec["cname" as keyof CacheMap] as string;
+    if ("flags" in w.cspec) {
+        // See src/imgui.ts:ImGui.TableFlags.Borders
+        ctx.flags = w.cspec["table_flags" as keyof CacheMap] as number;
+    }
+    else {
+        ctx.flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg;
+    }
+    console.log("render_table: cname:" + cname + ", title:" + title);
+    const table_accessor = cache_access<any>(ctx, cname);
+    if (ImGui.BeginTable(cname, table_accessor.value.names.length, ctx.flags)) {
+            for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
+                ImGui.TableSetupColumn(table_accessor.value.names[col_index]);
+            }
+            ImGui.TableHeadersRow();
+
+            for (let row_index = 0; row_index < table_accessor.value.rows.length; row_index++) {
+                let row = table_accessor.value.rows[row_index];
+                ImGui.TableNextRow();
+                for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
+                    ImGui.TableSetColumnIndex(col_index);
+                    let property:string = table_accessor.value.names[col_index];
+                    let cell = row[property] as unknown;
+                    let ctype = table_accessor.value.types[col_index];
+                    if (cell) {
+                        switch (ctype.typeId) {
+                            case 2: // BIGINT
+                            case 5: // bigint
+                                ImGui.TextUnformatted(cell.toString());
+                                break;
+                            case 3: // decimal as double
+                                ImGui.TextUnformatted(cell.toString());
+                                break;
+                            case 7: // decimal as Uint32Array
+                                console.error("render_duck_table_summary_modal: decimal at row/col: " + row_index + "/" + col_index);
+                                break;
+                            default:
+                                try {
+                                    ImGui.TextUnformatted(cell as string);
+                                }
+                                catch (error) {
+                                    console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
+                                }
+                                break;
+                        }                        
+                    }
+                }
+            }
+            ImGui.EndTable();
+        }
+
+}
+
+
 let nd_url = (locn:Location, upath:string): string => {
     return locn.protocol + "//" + locn.hostname + ":" + locn.port + upath;
 };
@@ -459,6 +517,7 @@ class NDContext {
             ["Button", render_button],
             ["DuckTableSummaryModal", render_duck_table_summary_modal],
             ["DuckParquetLoadingModal", render_duck_parquet_loading_modal],
+            ["Table", render_table],
         ]);      // render functions    
     // consts
     update_interval: number = 50;
@@ -572,7 +631,7 @@ class NDContext {
         ImGui.ASSERT(this.font !== null);
 
         // Finally, tee up the first element in layout to render: home
-        this.stack.push(this.layout[0]);
+        this.push(this.layout[0]);
 
         return 0;
     }
@@ -697,12 +756,7 @@ class NDContext {
                     _nd_ctx.cache.set("db_summary_"+nd_db_request.result.query_id,
                                         new Cached<any>(_nd_ctx, nd_db_request.result));
                 }
-                if (_nd_ctx.stack.length > 1) {
-                    let w = _nd_ctx.stack.pop();
-                    if (w?.rname !== "DuckParquetLoadingModal") {
-                        console.error("NDContext.on_duck_event: bad pop: " + w);
-                    }
-                }
+                _nd_ctx.pop("DuckParquetLoadingModal");
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
                 break;
             case "QueryResult":
@@ -737,14 +791,14 @@ class NDContext {
                 });
                 // if we have a widget_id='parquet_loading_modal' in layout raise it
                 if (modal_id && this.pushable.has(modal_id)) {
-                    this.stack.push(this.pushable.get(modal_id) as Widget);
+                    this.push(this.pushable.get(modal_id) as Widget);
                 }
                 break;
             default:
                 // is it a pushable widget?
                 // NB this is only for self popping modals like DuckTableSummaryModal
                 if (this.pushable.has(action)) {
-                    this.stack.push(this.pushable.get(action) as Widget);
+                    this.push(this.pushable.get(action) as Widget);
                 }
                 else {
                     console.error("NDContext.action_dispatch: unrecognised " + action);
@@ -768,12 +822,18 @@ class NDContext {
         } 
     }
     
-    push(layout_element:any): void {
+    push(layout_element:Widget): void {
         this.stack.push(layout_element);
     }
     
-    pop(): void {
-        this.stack.pop();
+    pop(rname:string=""): void {
+        let layout_element:Widget = this.stack.pop() as Widget;
+        if (rname) {
+            if (rname !== layout_element.rname) {
+                console.error("NDContext.pop: bad pop: expected " + rname +
+                    "and got " + layout_element.rname);
+            }
+        }
     }
     
     create_canvas(): HTMLCanvasElement {
