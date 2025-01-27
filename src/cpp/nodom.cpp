@@ -26,12 +26,15 @@ static char* old_value_cs("old_value");
 static char* cache_key_cs("cache_key");
 static char* nd_type_cs("nd_type");
 static char* __nodom__cs("__nodom__");
+static char* sys_cs("sys");
+static char* path_cs("path");
 
 
 NDServer::NDServer(const char* root_dir, const char* test)
     :root_path(root_dir), test_name(test)
 {
-    init_python();
+    if (!init_python()) exit(1);
+
     load_json();
 }
 
@@ -41,12 +44,21 @@ NDServer::~NDServer() {
 
 bool NDServer::init_python()
 {
-    pybind11::initialize_interpreter();
-    // PYTHONHOME and PYTHONPATH env vars should be set
-    // for this to work. See ide.cmd for examples.
-    auto test_module = pybind11::module_::import(test_name.c_str());
-    pybind11::dict __nodom__ = test_module.attr(pybind11::str(__nodom__cs));
-    on_client_data_changes_f = __nodom__[pybind11::str(on_client_data_changes_s)];
+    try {
+        pybind11::initialize_interpreter();
+        // PYTHONHOME and PYTHONPATH env vars should be set
+        // for this to work. See ide.cmd for examples.
+        auto sys_module = pybind11::module_::import(sys_cs);
+        auto path_p = sys_module.attr(path_cs);
+        pybind11::print("sys.path=", path_p);
+        auto test_module = pybind11::module_::import(test_name.c_str());
+        pybind11::dict __nodom__ = test_module.attr(pybind11::str(__nodom__cs));
+        on_client_data_changes_f = __nodom__[pybind11::str(on_client_data_changes_s)];
+    }
+    catch (pybind11::error_already_set& ex) {
+        std::cerr << ex.what() << std::endl;
+        return false;
+    }
     return true;
 }
 
