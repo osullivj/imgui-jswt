@@ -17,6 +17,22 @@ memory_editor.Open = false;
 
 let done: boolean = false;
 
+interface Materialized {
+    query_id:string,
+    result_type:string,
+    rows:any[],
+    names:string[],
+    types:string[]
+}
+
+var empty_table:Materialized = {
+    query_id:"<query_id>",
+    result_type:"select",
+    rows:[],
+    names:[],
+    types:[]
+};
+
 async function LoadArrayBuffer(url: string): Promise<ArrayBuffer> {
     const response: Response = await fetch(url);
     return response.arrayBuffer();
@@ -104,12 +120,17 @@ function cache_access<T>(ctx:NDContext, ckey: string, init_val?: T): Cached<T> {
             // not a "set". And we don't have a cache value.
             // So error, and throw an exception as we cannot
             // return a Cached<T>...
-            const error_message = "cache_access<T>: no cached val for " + ckey;
+            let error_message:string = "cache_access<T>: no cached val for " + ckey;
             console.log(error_message);
             throw error_message;
         }
     }
     return value;
+}
+
+function is_result_set(val:any): boolean {
+    if (!val.hasOwnProperty('query_id')) return false;
+    return true;
 }
 
 // Messages sent from GUI to server
@@ -125,6 +146,15 @@ interface DuckOp {
     db_type:string;
     sql:string;
 }
+
+interface DuckResultSet {
+    query_id:string;
+    result_type:string;
+    rows:any[];
+    names:string[];
+    types:string[];
+}
+
 
 function dispatch_render(ctx:NDContext, w: Widget): void {
     // Attempt to resolve rname to rfunc if not initialized
@@ -334,11 +364,11 @@ function render_duck_parquet_loading_modal(ctx:NDContext, w: Widget): void {
         for (let url_index = 0; url_index < url_list_accessor.value.length; url_index++) {
             ImGui.Text(url_list_accessor.value[url_index]);
         }
-        /** TODO: debug spinner
-        if (!ImGui.Spinner("spinner", 15, 6, 0)) {
+        /** TODO: debug spinner */
+        if (!ImGui.Spinner("parquet_loading_spinner", 5, 2, 0)) {
             // TODO: why doesn't spinner work?
             console.error("render_duck_parquet_loading_modal: spinner fail");
-        } */
+        }
         ImGui.EndPopup();
     }
 }
@@ -443,7 +473,7 @@ function render_table(ctx:NDContext, w: Widget): void {
         ctx.flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg;
     }
     console.log("render_table: cname:" + cname + ", title:" + title);
-    const table_accessor = cache_access<any>(ctx, cname);
+    const table_accessor = cache_access<any>(ctx, cname, empty_table);
     if (ImGui.BeginTable(cname, table_accessor.value.names.length, ctx.flags)) {
             for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
                 ImGui.TableSetupColumn(table_accessor.value.names[col_index]);

@@ -97,12 +97,7 @@ int main(int argc, char** argv)
     bool show_demo_window = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    // nodom emulator setup
-    if (argc < 3) {
-        printf("test_data_dir and test args missing!");
-        exit(1);
-    }
-    NDServer server(argv[1], argv[2]);
+    NDServer server(argc, argv);
     NDContext ctx(server);
 
     // Main loop

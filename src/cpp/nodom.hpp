@@ -4,6 +4,7 @@
 #include <deque>
 #include "json.hpp"
 #include <pybind11/pybind11.h>
+#include <filesystem>
 // NoDOM emulation: debugging ND impls in TS/JS is tricky. Code compiled from C++ to clang .o
 // is not available. So when we port to EM, we have to resort to printf debugging. Not good
 // when we want to understand what the "correct" imgui behaviour should be. So here we have
@@ -13,11 +14,12 @@
 // JOS 2025-01-22
 
 #define ND_MAX_COMBO_LIST 16
+#define ND_WC_BUF_SZ 256
 
 class NDServer {
 public:
     // Pass argv[1] to the ctor for the test data dir
-    NDServer(const char* root_dir, const char* test);
+    NDServer(int argc, char** argv);
     virtual ~NDServer();
     // Emulating the NDContext.init() fetches from server
     std::string&    fetch(const std::string& key) { return json_map[key]; }
@@ -29,8 +31,14 @@ protected:
     bool fini_python();
 
 private:
+    nlohmann::json                      py_config;
     pybind11::object                    on_client_data_changes_f;
-    std::string                         root_path;
+    char*                               exe;    // argv[0]
+    wchar_t                             wc_buf[ND_WC_BUF_SZ];
+    char*                               bb_json_path;
+    std::string                         test_dir;
+    std::string                         test_module_name;
+    std::string                         src_py_path;
     std::string                         test_name;
     std::map<std::string, std::string>  json_map;
 };

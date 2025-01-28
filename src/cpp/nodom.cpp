@@ -10,6 +10,7 @@
 #include <sstream>
 #include <functional>
 #include <vector>
+#include <filesystem>
 // nlohmann/json/single_include/nlohmann/json.hpp
 // pybind11
 #include <pybind11/embed.h>
@@ -30,9 +31,37 @@ static char* sys_cs("sys");
 static char* path_cs("path");
 
 
-NDServer::NDServer(const char* root_dir, const char* test)
-    :root_path(root_dir), test_name(test)
+NDServer::NDServer(int argc, char** argv)
 {
+    std::string usage("breadboard <breadboard_config_json_path> <test_dir>");
+    if (argc < 3) {
+        printf("breadboard <breadboard_config_json_path> <test_dir>");
+        exit(1);
+    }
+    exe = argv[0];
+    bb_json_path = argv[1];
+    test_dir = argv[2];
+
+    if (!std::filesystem::exists(bb_json_path)) {
+        std::cerr << usage << std::endl << "Cannot load breadboard config json from " << bb_json_path << std::endl;
+        exit(1);
+    }
+    try {
+        // breadboard.json specifies the base paths for the embedded py
+        std::stringstream json_buffer;
+        std::ifstream in_file_stream(bb_json_path);
+        json_buffer << in_file_stream.rdbuf();
+        py_config = nlohmann::json::parse(json_buffer);
+    }
+    catch (...) {
+        printf("cannot load breadboard.json");
+        exit(1);
+    }
+
+    // figure out the module from test name
+    std::filesystem::path test_path(test_dir);
+    test_module_name = test_path.stem().string();
+
     if (!init_python()) exit(1);
 
     load_json();
@@ -45,13 +74,34 @@ NDServer::~NDServer() {
 bool NDServer::init_python()
 {
     try {
-        pybind11::initialize_interpreter();
-        // PYTHONHOME and PYTHONPATH env vars should be set
-        // for this to work. See ide.cmd for examples.
+        // See "Custom PyConfig"
+        // https://raw.githubusercontent.com/pybind/pybind11/refs/heads/master/tests/test_embed/test_interpreter.cpp
+        PyConfig config;
+        PyConfig_InitPythonConfig(&config);
+
+        // should set exe name to breadboard.exe
+        std::mbstowcs(wc_buf, exe, ND_WC_BUF_SZ);
+        PyConfig_SetString(&config, &config.executable, wc_buf);
+
+        // now get base_prefix (orig py install dir) and prefix (venv) from breadboard.json
+        std::string base_prefix = py_config["base_prefix"];
+        std::string prefix = py_config["prefix"];
+        std::mbstowcs(wc_buf, base_prefix.c_str(), ND_WC_BUF_SZ);
+        PyConfig_SetString(&config, &config.base_prefix, wc_buf);
+        std::mbstowcs(wc_buf, prefix.c_str(), ND_WC_BUF_SZ);
+        PyConfig_SetString(&config, &config.prefix, wc_buf);
+
+        // Start Python runtime
+        Py_InitializeFromConfig(&config);
+        // pybind11::initialize_interpreter();
+
+        // as a sanity check, import sys and print sys.path
         auto sys_module = pybind11::module_::import(sys_cs);
         auto path_p = sys_module.attr(path_cs);
         pybind11::print("sys.path=", path_p);
-        auto test_module = pybind11::module_::import(test_name.c_str());
+
+        // add nd_py_source to sys.path
+        auto test_module = pybind11::module_::import(test_module_name.c_str());
         pybind11::dict __nodom__ = test_module.attr(pybind11::str(__nodom__cs));
         on_client_data_changes_f = __nodom__[pybind11::str(on_client_data_changes_s)];
     }
@@ -74,12 +124,13 @@ bool NDServer::load_json()
     // bool rv = true;
     std::list<std::string> json_files = { "layout", "data" };
     for (auto jf : json_files) {
+        std::filesystem::path jpath(test_dir);
         std::stringstream file_name_buffer;
-        file_name_buffer << root_path << "\\dat\\test\\" << test_name << "\\" << jf << ".json";
-        std::string json_path = file_name_buffer.str();
-        std::cout << "load_json: " << json_path << std::endl;
+        file_name_buffer << jf << ".json";
+        jpath.append(file_name_buffer.str());
+        std::cout << "load_json: " << jpath << std::endl;
         std::stringstream json_buffer;
-        std::ifstream in_file_stream(json_path);
+        std::ifstream in_file_stream(jpath);
         json_buffer << in_file_stream.rdbuf();
         json_map[jf] = json_buffer.str();
     }

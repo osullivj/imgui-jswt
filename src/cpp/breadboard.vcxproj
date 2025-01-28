@@ -105,6 +105,7 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\..\imgui;..\..\imgui\backends;..\..\imgui\examples\libs\glfw\include;C:\osullivj\bin\py3.12.3x64\Include;C:\osullivj\src\h3gui\venv\Lib\site-packages\pybind11\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
