@@ -150,15 +150,19 @@ nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_
     nd_message[new_value_cs] = new_val;
     nd_message[old_value_cs] = old_val;
     // on_client_data_changes expects a list of nd_messages: size to one
-    pybind11::list client_changes(1);
+    pybind11::list client_changes;
     client_changes.append(nd_message);
+
     pybind11::list server_changes_p = on_client_data_changes_f(client_changes);
     nlohmann::json server_changes_j = nlohmann::json::array();
     for (int i = 0; i < server_changes_p.size(); i++) {
         pybind11::dict change_p = server_changes_p[i];
-        if (change_p[nd_type_cs] == pybind11::str(data_change_cs)) {
+        std::string nd_type = change_p[nd_type_cs].cast<std::string>();
+        if (nd_type == data_change_cs) {
+            std::string cache_key = change_p[cache_key_cs].cast<std::string>();
             nlohmann::json change_j;
             change_j[nd_type_cs] = data_change_s;
+            change_j[cache_key_cs] = cache_key;
             change_j[new_value_cs] = pybind11::cast<int>(change_p[new_value_cs]);
             change_j[old_value_cs] = pybind11::cast<int>(change_p[old_value_cs]);
             server_changes_j.push_back(change_j);
@@ -261,6 +265,7 @@ void NDContext::render_input_int(nlohmann::json& w)
     ImGui::InputInt(label.c_str(), &input_integer, step, step_fast, flags);
     // copy local copy back into cache
     if (input_integer != old_val) {
+        pybind11::gil_scoped_acquire acquire;
         data[cname_cache_addr] = input_integer;
         nlohmann::json server_changes_j = server.notify_server_atomic(cname_cache_addr, old_val, input_integer);
         apply_server_changes(server_changes_j);
