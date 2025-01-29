@@ -18,7 +18,7 @@
 #include "nodom.hpp"
 
 // Python consts
-static std::string    on_client_data_changes_s("on_client_data_changes");
+static char* on_data_change_cs("on_data_change");
 static char* data_change_cs("DataChange");
 static std::string data_change_s(data_change_cs);
 static char* data_change_confirmed_cs("DataChangeConfirmed");
@@ -29,6 +29,8 @@ static char* nd_type_cs("nd_type");
 static char* __nodom__cs("__nodom__");
 static char* sys_cs("sys");
 static char* path_cs("path");
+static char* service_cs("service");
+static char* breadboard_cs("breadboard");
 
 
 NDServer::NDServer(int argc, char** argv)
@@ -98,12 +100,12 @@ bool NDServer::init_python()
         // as a sanity check, import sys and print sys.path
         auto sys_module = pybind11::module_::import(sys_cs);
         auto path_p = sys_module.attr(path_cs);
-        pybind11::print("sys.path=", path_p);
+        pybind11::print("sys.path: ", path_p);
 
         // add nd_py_source to sys.path
         auto test_module = pybind11::module_::import(test_module_name.c_str());
-        pybind11::dict __nodom__ = test_module.attr(pybind11::str(__nodom__cs));
-        on_client_data_changes_f = __nodom__[pybind11::str(on_client_data_changes_s)];
+        pybind11::object service = test_module.attr(service_cs);
+        on_data_change_f = service.attr(on_data_change_cs);
     }
     catch (pybind11::error_already_set& ex) {
         std::cerr << ex.what() << std::endl;
@@ -115,7 +117,9 @@ bool NDServer::init_python()
 
 bool NDServer::fini_python()
 {
-    pybind11::finalize_interpreter();
+    // TODO: debug refcount errors. Is it happening because we're mixing
+    // Py_InitializeFromConfig with pybind11 ?
+    // pybind11::finalize_interpreter();
     return true;
 }
 
@@ -139,21 +143,26 @@ bool NDServer::load_json()
 
 nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
 {
+    std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
     // the client has set data[caddr]=new_val, so let the server side python know so
     // it can react with its own changes
     pybind11::dict nd_message;
     // NDAPIApp.on_ws_message() invokes on_data_change() to apply the changes to the
-    // server side cache, and changes nd_type from DataChange to DataChangeConfigmed
-    // before replaying to client side. New server side changes will be appended...
-    nd_message[nd_type_cs] = data_change_confirmed_cs;
+    // server side cache
+    nd_message[nd_type_cs] = data_change_cs;
     nd_message[cache_key_cs] = caddr;
     nd_message[new_value_cs] = new_val;
     nd_message[old_value_cs] = old_val;
-    // on_client_data_changes expects a list of nd_messages: size to one
-    pybind11::list client_changes;
-    client_changes.append(nd_message);
 
-    pybind11::list server_changes_p = on_client_data_changes_f(client_changes);
+    std::cout << "cpp: notify_server_atomic: " << nd_type_cs << ":" << data_change_cs << std::endl;
+    std::cout << "cpp: notify_server_atomic: " << cache_key_cs << ":" << caddr << std::endl;
+    std::cout << "cpp: notify_server_atomic: " << new_value_cs << ":" << new_val << std::endl;
+    std::cout << "cpp: notify_server_atomic: " << old_value_cs << ":" << old_val << std::endl;
+
+    // TODO: debug Python mem issue: suspect that the std::string cache_key is holding
+    // a Python char* which gets copied into the json array. apply_server_changes() is
+    // invoked by our caller
+    pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
     nlohmann::json server_changes_j = nlohmann::json::array();
     for (int i = 0; i < server_changes_p.size(); i++) {
         pybind11::dict change_p = server_changes_p[i];
@@ -207,6 +216,16 @@ void NDContext::apply_server_changes(nlohmann::json& server_changes)
     }
 }
 
+
+void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
+{
+    // server.notify_server_atomic() will use invoke python, and return a json list
+    // with refs to python mem embedded. So we hold the GIL here...
+    pybind11::gil_scoped_acquire acquire;
+    nlohmann::json server_changes = server.notify_server_atomic(caddr, old_val, new_val);
+    apply_server_changes(server_changes);
+
+}
 
 void NDContext::render()
 {
@@ -265,10 +284,8 @@ void NDContext::render_input_int(nlohmann::json& w)
     ImGui::InputInt(label.c_str(), &input_integer, step, step_fast, flags);
     // copy local copy back into cache
     if (input_integer != old_val) {
-        pybind11::gil_scoped_acquire acquire;
         data[cname_cache_addr] = input_integer;
-        nlohmann::json server_changes_j = server.notify_server_atomic(cname_cache_addr, old_val, input_integer);
-        apply_server_changes(server_changes_j);
+        notify_server_atomic(cname_cache_addr, old_val, input_integer);
     }
 }
 
@@ -302,8 +319,7 @@ void NDContext::render_combo(nlohmann::json& w)
     ImGui::Combo(label.c_str(), &combo_selection, cs_combo_list, combo_count);
     if (combo_selection != old_val) {
         data[combo_index_cache_addr] = combo_selection;
-        nlohmann::json server_changes_j = server.notify_server_atomic(combo_index_cache_addr, old_val, combo_selection);
-        apply_server_changes(server_changes_j);
+        notify_server_atomic(combo_index_cache_addr, old_val, combo_selection);
     }
 }
 

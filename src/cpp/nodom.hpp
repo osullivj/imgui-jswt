@@ -32,7 +32,7 @@ protected:
 
 private:
     nlohmann::json                      py_config;
-    pybind11::object                    on_client_data_changes_f;
+    pybind11::object                    on_data_change_f;
     char*                               exe;    // argv[0]
     wchar_t                             wc_buf[ND_WC_BUF_SZ];
     char*                               bb_json_path;
@@ -49,6 +49,7 @@ public:
     NDContext(NDServer& s);
     void render();                              // invoked by main loop
 
+    void notify_server_atomic(const std::string& caddr, int old_val, int new_val);
     void apply_server_changes(nlohmann::json& server_changes);
 
 protected:
