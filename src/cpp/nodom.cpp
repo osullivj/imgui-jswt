@@ -224,7 +224,6 @@ void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int 
     pybind11::gil_scoped_acquire acquire;
     nlohmann::json server_changes = server.notify_server_atomic(caddr, old_val, new_val);
     apply_server_changes(server_changes);
-
 }
 
 void NDContext::render()
@@ -332,6 +331,7 @@ void NDContext::render_separator(nlohmann::json& w)
 
 void NDContext::render_footer(nlohmann::json& w)
 {
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 }
 
 
