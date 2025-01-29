@@ -348,6 +348,8 @@ void NDContext::render_date_picker(nlohmann::json& w)
 
 void NDContext::render_text(nlohmann::json& w)
 {
+    std::string rtext = w.value(nlohmann::json::json_pointer("/cspec/text"), "");
+    ImGui::Text(rtext.c_str());
 }
 
 
