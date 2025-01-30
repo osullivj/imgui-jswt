@@ -24,12 +24,14 @@ public:
     // Emulating the NDContext.init() fetches from server
     std::string&    fetch(const std::string& key) { return json_map[key]; }
     nlohmann::json  notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-    nlohmann::json  notify_server_atomic_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    nlohmann::json  notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+
 
 protected:
     bool load_json();
     bool init_python();
     bool fini_python();
+    void compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j);
 
 
 private:
@@ -52,8 +54,9 @@ public:
     void render();                              // invoked by main loop
 
     void notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-    void notify_server_atomic_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    void notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
     void apply_server_changes(nlohmann::json& server_changes);
+
 
 protected:
     void dispatch_render(nlohmann::json& w);    // w["rname"] resolve & invoke

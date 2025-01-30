@@ -15,7 +15,7 @@
 // nlohmann/json/single_include/nlohmann/json.hpp
 // pybind11
 #include <pybind11/embed.h>
-
+#include "pybind11_json.hpp"
 #include "nodom.hpp"
 
 // Python consts
@@ -142,6 +142,23 @@ bool NDServer::load_json()
     return true;
 }
 
+
+void NDServer::compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j)
+{
+    for (int i = 0; i < server_changes_p.size(); i++) {
+        pybind11::dict change_p = server_changes_p[i];
+        std::string nd_type = pyjson::to_json(change_p[nd_type_cs]);
+        if (nd_type == data_change_cs) {
+            nlohmann::json change_j;
+            change_j[nd_type_cs] = pybind11::str(data_change_cs);
+            change_j[cache_key_cs] = pyjson::to_json(change_p[cache_key_cs]);
+            change_j[new_value_cs] = pyjson::to_json(change_p[new_value_cs]);
+            change_j[old_value_cs] = pyjson::to_json(change_p[old_value_cs]);
+            server_changes_j.push_back(change_j);
+        }
+    }
+}
+
 nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
 {
     std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
@@ -149,7 +166,9 @@ nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_
     // it can react with its own changes
     pybind11::dict nd_message;
     // NDAPIApp.on_ws_message() invokes on_data_change() to apply the changes to the
-    // server side cache
+    // server side cache. Note the explicit casts on RHS like pybind11::str()
+    // V important for eg caddr, which is probably from a json obj. We do not
+    // want move semantics kicking in then...
     nd_message[nd_type_cs] = pybind11::str(data_change_cs);
     nd_message[cache_key_cs] = pybind11::str(caddr.c_str());
     nd_message[new_value_cs] = new_val;
@@ -165,52 +184,22 @@ nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_
     // invoked by our caller
     pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
     nlohmann::json server_changes_j = nlohmann::json::array();
-    for (int i = 0; i < server_changes_p.size(); i++) {
-        pybind11::dict change_p = server_changes_p[i];
-        std::string nd_type = change_p[nd_type_cs].cast<std::string>();
-        if (nd_type == data_change_cs) {
-            std::string cache_key = change_p[cache_key_cs].cast<std::string>();
-            nlohmann::json change_j;
-            change_j[nd_type_cs] = pybind11::str(data_change_s);
-            change_j[cache_key_cs] = pybind11::str(cache_key.c_str());
-            change_j[new_value_cs] = pybind11::cast<int>(change_p[new_value_cs]);
-            change_j[old_value_cs] = pybind11::cast<int>(change_p[old_value_cs]);
-            server_changes_j.push_back(change_j);
-        }
-    }
+    compose_server_changes(server_changes_p, server_changes_j);
     return server_changes_j;
 }
+
 
 void json_atomic_array_to_python_list(nlohmann::json& atomic_array_j, pybind11::list& list_p)
 {
     for (auto it : atomic_array_j) {
-        auto element_type = it.type();
-        switch (element_type) {
-        case nlohmann::json::value_t::number_float:
-            list_p.append(it.get<float>());
-            break;
-        case nlohmann::json::value_t::number_integer:
-            list_p.append(it.get<int>());
-            break;
-        case nlohmann::json::value_t::number_unsigned:
-            list_p.append(it.get<int>());
-            break;
-        case nlohmann::json::value_t::boolean:
-            list_p.append(it.get<bool>());
-            break;
-        case nlohmann::json::value_t::string:
-            list_p.append(it.get<std::string>());
-            break;
-        default:
-            std::cerr << "cpp: json_atomic_array_to_python_list: bad element_type: " << int(element_type) << std::endl;
-            break;
-        }
+        list_p.append(pyjson::from_json(it));
     }
 }
 
-nlohmann::json NDServer::notify_server_atomic_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+
+nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
-    std::cout << "cpp: notify_server_atomic_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
+    std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
     // the client has set data[caddr]=new_val, so let the server side python know so
     // it can react with its own changes
     pybind11::dict nd_message;
@@ -218,41 +207,31 @@ nlohmann::json NDServer::notify_server_atomic_array(const std::string& caddr, nl
     // server side cache
     nd_message[nd_type_cs] = pybind11::str(data_change_cs);
     nd_message[cache_key_cs] = pybind11::str(caddr.c_str());
-    // C++11 range loop will give values only. Fine here as it's
-    // an array not a map. NB we also know the values will be
-    // atomic eg string/int/float. Note we use it.get<T>()
-    // to get the underlying json vals before passing to
-    // python list.append() to avoid move semantics confounding
-    // pybind11 or nlohmann::json
     pybind11::list array_new_p, array_old_p;
     json_atomic_array_to_python_list(new_val, array_new_p);
     json_atomic_array_to_python_list(old_val, array_old_p);
     nd_message[new_value_cs] = array_new_p;
-    nd_message[cache_key_cs] = array_old_p;
+    nd_message[old_value_cs] = array_old_p;
 
-    std::cout << "cpp: notify_server_atomic_array: " << nd_type_cs << ":" << data_change_cs << std::endl;
-    std::cout << "cpp: notify_server_atomic_array: " << cache_key_cs << ":" << caddr << std::endl;
-    std::cout << "cpp: notify_server_atomic_array: " << new_value_cs << ":" << new_val << std::endl;
-    std::cout << "cpp: notify_server_atomic_array: " << old_value_cs << ":" << old_val << std::endl;
+    std::cout << "cpp: notify_server_array: " << nd_type_cs << ":" << data_change_cs << std::endl;
+    std::cout << "cpp: notify_server_array: " << cache_key_cs << ":" << caddr << std::endl;
+    std::cout << "cpp: notify_server_array: " << new_value_cs << ":" << new_val << std::endl;
+    std::cout << "cpp: notify_server_array: " << old_value_cs << ":" << old_val << std::endl;
 
-    // TODO: debug Python mem issue: suspect that the std::string cache_key is holding
-    // a Python char* which gets copied into the json array. apply_server_changes() is
-    // invoked by our caller
-    pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
-    nlohmann::json server_changes_j = nlohmann::json::array();
-    for (int i = 0; i < server_changes_p.size(); i++) {
-        pybind11::dict change_p = server_changes_p[i];
-        std::string nd_type = change_p[nd_type_cs].cast<std::string>(); // NB cp~mv
-        if (nd_type == data_change_cs) {
-            nlohmann::json change_j;
-            change_j[nd_type_cs] = data_change_s;
-            change_j[cache_key_cs] = change_p[cache_key_cs].cast<std::string>();
-            change_j[new_value_cs] = pybind11::cast<int>(change_p[new_value_cs]);
-            change_j[old_value_cs] = pybind11::cast<int>(change_p[old_value_cs]);
-            server_changes_j.push_back(change_j);
-        }
+    try {
+        pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
+        nlohmann::json server_changes_j = nlohmann::json::array();
+        compose_server_changes(server_changes_p, server_changes_j);
+        return server_changes_j;
     }
-    return server_changes_j;
+    catch (pybind11::error_already_set& ex) {
+        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
+
+    }
+    catch (pybind11::cast_error& ex) {
+        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
+    }
+    return nlohmann::json::array();
 }
 
 
@@ -282,6 +261,8 @@ NDContext::NDContext(NDServer& s)
 }
 
 
+
+
 void NDContext::apply_server_changes(nlohmann::json& server_changes)
 {
     // server_changes will be a list of json obj copied out of a pybind11
@@ -303,12 +284,12 @@ void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int 
 }
 
 
-void NDContext::notify_server_atomic_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
     // server.notify_server_atomic() will use invoke python, and return a json list
     // with refs to python mem embedded. So we hold the GIL here...
     pybind11::gil_scoped_acquire acquire;
-    nlohmann::json server_changes = server.notify_server_atomic_array(caddr, old_val, new_val);
+    nlohmann::json server_changes = server.notify_server_array(caddr, old_val, new_val);
     apply_server_changes(server_changes);
 }
 
@@ -447,7 +428,7 @@ void NDContext::render_date_picker(nlohmann::json& w)
         ymd_new_j.push_back(ymd_i[1]);
         ymd_new_j.push_back(ymd_i[2]);
         data[ckey] = ymd_new_j;
-        notify_server_atomic_array(ckey, ymd_old_j, ymd_new_j);
+        notify_server_array(ckey, ymd_old_j, ymd_new_j);
     }
 }
 
