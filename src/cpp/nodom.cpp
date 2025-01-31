@@ -311,8 +311,17 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
 
 void NDContext::render()
 {
-    // TODO: this loop breaks if we raise a modal as changing stack state while these
-    // iters are live segfaults
+    // drain pending_pushes onto the render stack, maintaining
+    // the stack order we would have had if the push had
+    // happended intra-render. JOS 2025-01-31
+    while (!pending_pushes.empty()) {
+        stack.push_back(pending_pushes.front());
+        pending_pushes.pop_front();
+    }
+    // This loop breaks if we raise a modal as changing stack state while this
+    // iter is live segfaults. JS lets us get away with that in main.ts:render
+    // Here we push modals into pending_pushes so they can push/pop outside
+    // the context of the loop below. JOS 2025-01-31
     for (std::deque<nlohmann::json>::iterator it = stack.begin(); it != stack.end(); ++it) {
         // deref it for clarity and to rename as widget for
         // cross ref with main.ts logic
@@ -354,7 +363,7 @@ void NDContext::action_dispatch(nlohmann::json& cspec)
         // if we have a widget_id='parquet_loading_modal' in layout raise it
         if (!widget_id.empty() && it != pushables.end()) {
             std::cout << "cpp:action_dispatch: raising modal: " << widget_id << std::endl;
-            stack.push_back(pushables[widget_id]);
+            pending_pushes.push_back(pushables[widget_id]);
         }
     }
     else {

@@ -97,4 +97,10 @@ private:
 
     // top level layout widgets with widget_id eg modals are in pushables
     std::unordered_map<std::string, nlohmann::json> pushables;
+    // main.ts:action_dispatch is called while rendering, and changes
+    // the size of the render stack. JS will let us do that in the root
+    // render() method. But in C++ we use an STL iterator in the root render
+    // method, and that segfaults. So in C++ we have pending pushes done
+    // outside the render stack walk. JOS 2025-01-31
+    std::deque<nlohmann::json> pending_pushes;
 };
