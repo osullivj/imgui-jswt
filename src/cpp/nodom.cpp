@@ -252,8 +252,12 @@ NDContext::NDContext(NDServer& s)
     // like parquet_loading_modal have to be explicitly pushed
     // on to the render stack by an event. JOS 2025-01-31
     for (nlohmann::json::iterator it = layout.begin(); it != layout.end(); ++it) {
-        std::string modal_id = it->value("modal_id","");
-        if (!modal_id.empty()) pushables[modal_id] = it.value();
+        std::cout << "NDcontext.ctor: pushable: " << *it << std::endl;
+        std::string widget_id = it->value("widget_id", "");
+        if (!widget_id.empty()) {
+            std::cout << "NDcontext.ctor: pushable: " << widget_id << ":" << *it << std::endl;
+            pushables[widget_id] = *it;
+        }
     }
 
     rfmap.emplace(std::string("Home"), [this](nlohmann::json& w){ render_home(w); });
@@ -307,6 +311,8 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
 
 void NDContext::render()
 {
+    // TODO: this loop breaks if we raise a modal as changing stack state while these
+    // iters are live segfaults
     for (std::deque<nlohmann::json>::iterator it = stack.begin(); it != stack.end(); ++it) {
         // deref it for clarity and to rename as widget for
         // cross ref with main.ts logic
@@ -340,14 +346,15 @@ void NDContext::action_dispatch(nlohmann::json& cspec)
     if (action == "ParquetScan") {
         std::string sql_cache_key = cspec["sql"];
         std::string qid_cache_key = cspec["query_id"];
-        std::string modal_id = cspec["modal"];
+        std::string widget_id = cspec["modal"];
         std::string sql = data[sql_cache_key];
         std::string query_id = data[qid_cache_key];
         duck_dispatch(sql, query_id);
-        auto it = pushables.find(modal_id);
+        auto it = pushables.find(widget_id);
         // if we have a widget_id='parquet_loading_modal' in layout raise it
-        if (!modal_id.empty() && it != pushables.end()) {
-            stack.push_back(pushables[modal_id]);
+        if (!widget_id.empty() && it != pushables.end()) {
+            std::cout << "cpp:action_dispatch: raising modal: " << widget_id << std::endl;
+            stack.push_back(pushables[widget_id]);
         }
     }
     else {
