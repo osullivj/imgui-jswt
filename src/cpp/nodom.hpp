@@ -37,12 +37,12 @@ protected:
 private:
     nlohmann::json                      py_config;
     pybind11::object                    on_data_change_f;
+    bool                                is_duck_app;
     char*                               exe;    // argv[0]
     wchar_t                             wc_buf[ND_WC_BUF_SZ];
     char*                               bb_json_path;
     std::string                         test_dir;
     std::string                         test_module_name;
-    std::string                         src_py_path;
     std::string                         test_name;
     std::map<std::string, std::string>  json_map;
 };
@@ -59,8 +59,9 @@ public:
 
 
 protected:
-    void dispatch_render(nlohmann::json& w);    // w["rname"] resolve & invoke
-
+    void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
+    void action_dispatch(nlohmann::json& cspec);
+    void duck_dispatch(const std::string& sql, const std::string& qid);
     // Render funcs are members of NDContext, unlike in main.ts
     // Why? Separate standalone funcs like in main.ts cause too much
     // hassle with dispatch_render passing this and templating
@@ -83,11 +84,17 @@ protected:
 
 
 private:
+    // ref to "server process"; in reality it's just a Service class instance
+    // with no event loop and synchornous dispatch across c++py boundary
     NDServer&                           server;
-    nlohmann::json                      layout;
-    nlohmann::json                      data;
-    std::deque<nlohmann::json>          stack;
+    
+    nlohmann::json                      layout; // layout and data are fetched by 
+    nlohmann::json                      data;   // sync c++py calls not HTTP gets
+    std::deque<nlohmann::json>          stack;  // render stack
+
+    // map layout render func names to the actual C++ impls
     std::unordered_map<std::string, std::function<void(nlohmann::json& w)>> rfmap;
-    // std::map<std::string, const NDRenderFunc> rfmap;
-    // NDRenderHome _render_home;
+
+    // top level layout widgets with widget_id eg modals are in pushables
+    std::unordered_map<std::string, nlohmann::json> pushables;
 };

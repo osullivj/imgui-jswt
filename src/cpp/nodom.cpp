@@ -20,6 +20,7 @@
 
 // Python consts
 static char* on_data_change_cs("on_data_change");
+static char* is_duck_app_cs("is_duck_app");
 static char* data_change_cs("DataChange");
 static std::string data_change_s(data_change_cs);
 static char* data_change_confirmed_cs("DataChangeConfirmed");
@@ -35,6 +36,7 @@ static char* breadboard_cs("breadboard");
 
 
 NDServer::NDServer(int argc, char** argv)
+    :is_duck_app(false)
 {
     std::string usage("breadboard <breadboard_config_json_path> <test_dir>");
     if (argc < 3) {
@@ -103,10 +105,12 @@ bool NDServer::init_python()
         auto path_p = sys_module.attr(path_cs);
         pybind11::print("sys.path: ", path_p);
 
-        // add nd_py_source to sys.path
+        // src/py is not in sys.path, so how do we import?
+        // see nodom.pth in site-packages
         auto test_module = pybind11::module_::import(test_module_name.c_str());
         pybind11::object service = test_module.attr(service_cs);
         on_data_change_f = service.attr(on_data_change_cs);
+        is_duck_app = pybind11::bool_(service.attr(is_duck_app_cs));
     }
     catch (pybind11::error_already_set& ex) {
         std::cerr << ex.what() << std::endl;
@@ -243,6 +247,15 @@ NDContext::NDContext(NDServer& s)
     layout = nlohmann::json::parse(layout_s);
     data = nlohmann::json::parse(server.fetch("data"));
 
+    // layout is a list of widgets; and all may have children
+    // however, not all widgets are children. For instance modals
+    // like parquet_loading_modal have to be explicitly pushed
+    // on to the render stack by an event. JOS 2025-01-31
+    for (nlohmann::json::iterator it = layout.begin(); it != layout.end(); ++it) {
+        std::string modal_id = it->value("modal_id","");
+        if (!modal_id.empty()) pushables[modal_id] = it.value();
+    }
+
     rfmap.emplace(std::string("Home"), [this](nlohmann::json& w){ render_home(w); });
     rfmap.emplace(std::string("InputInt"), [this](nlohmann::json& w) { render_input_int(w); });
     rfmap.emplace(std::string("Combo"), [this](nlohmann::json& w) { render_combo(w); });
@@ -259,8 +272,6 @@ NDContext::NDContext(NDServer& s)
     // Home on the render stack
     stack.push_back(layout[0]);
 }
-
-
 
 
 void NDContext::apply_server_changes(nlohmann::json& server_changes)
@@ -315,6 +326,41 @@ void NDContext::dispatch_render(nlohmann::json& w)
     }
     auto it = rfmap.find(w["rname"]);
     it->second(w);
+}
+
+void NDContext::duck_dispatch(const std::string& sql, const std::string& qid)
+{
+    std::cout << "cpp: duck_dispatch: qid:" << qid << ", sql: " << sql << std::endl;
+}
+
+void NDContext::action_dispatch(nlohmann::json& cspec)
+{
+    std::string action = cspec["action"];
+    std::cout << "cpp:action_dispatch: action:" << action << std::endl;
+    if (action == "ParquetScan") {
+        std::string sql_cache_key = cspec["sql"];
+        std::string qid_cache_key = cspec["query_id"];
+        std::string modal_id = cspec["modal"];
+        std::string sql = data[sql_cache_key];
+        std::string query_id = data[qid_cache_key];
+        duck_dispatch(sql, query_id);
+        auto it = pushables.find(modal_id);
+        // if we have a widget_id='parquet_loading_modal' in layout raise it
+        if (!modal_id.empty() && it != pushables.end()) {
+            stack.push_back(pushables[modal_id]);
+        }
+    }
+    else {
+        // is it a pushable widget?
+        // NB this is only for self popping modals like DuckTableSummaryModal
+        auto it = pushables.find(action);
+        if (it != pushables.end()) {
+            stack.push_back(pushables[action]);
+        }
+        else {
+            std::cerr << "action_dispatch: no widget_id matching " << action.c_str() << std::endl;
+        }
+    }
 }
 
 
@@ -444,7 +490,7 @@ void NDContext::render_button(nlohmann::json& w)
 {
     std::string button_text = w.value(nlohmann::json::json_pointer("/cspec/text"), "render_button_bad_text");
     if (ImGui::Button(button_text.c_str())) {
-        // TODO dispatch click
+        action_dispatch(w["cspec"]);
     }
 }
 
