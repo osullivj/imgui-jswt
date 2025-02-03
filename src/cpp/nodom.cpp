@@ -461,6 +461,7 @@ void NDContext::render_separator(nlohmann::json& w)
 
 void NDContext::render_footer(nlohmann::json& w)
 {
+    // TODO: add DB button impl from main.ts
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 }
 
@@ -510,13 +511,38 @@ void NDContext::render_button(nlohmann::json& w)
     }
 }
 
-
-void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
+void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
 {
+    static ImVec2 position = { 0.5, 0.5 };
+    std::string cname_cache_addr = w.value(nlohmann::json::json_pointer("/cspec/cname"), "");
+    std::string title = w.value(nlohmann::json::json_pointer("/cspec/title"), "");
+    ImGui::OpenPopup(title.c_str());
+
+    // Always center this window when appearing
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    if (!vp) {
+        std::cerr << "render_duck_parquet_loading_modal: cname: " << cname_cache_addr
+            << ", title: " << title << ", null viewport ptr!";
+    }
+    auto center = vp->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, position);
+
+    // Get the parquet url list
+    auto pq_urls = data[cname_cache_addr];
+    std::cout << "render_duck_parquet_loading_modal: urls: " << pq_urls << std::endl;
+
+    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        for (int i = 0; i < pq_urls.size(); i++) ImGui::Text(pq_urls[i].get<std::string>().c_str());
+        /** TODO: debug spinner */
+        if (!ImGui::Spinner("parquet_loading_spinner", 5, 2, 0)) {
+            // TODO: why doesn't spinner work?
+            std::cerr << "render_duck_parquet_loading_modal: spinner fail" << std::endl;
+        }
+        ImGui::EndPopup();
+    }
 }
 
-
-void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
+void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
 {
 }
 
