@@ -376,28 +376,40 @@ function render_duck_parquet_loading_modal(ctx:NDContext, w: Widget): void {
 
 // main GUI footer
 function render_footer(ctx:NDContext, w: Widget): void {
-    // Push colour styling for the DB button
-    ImGui.PushStyleColor(ImGui.Col.Button, ctx.db_status_color);
-    if (ImGui.Button("DB")) {
-        if (typeof(window) !== "undefined") {
-            window.open(_nd_ctx.duck_journal_url);
+    ctx.footer_db = w.cspec["db" as keyof CacheMap] as unknown as boolean;
+    ctx.footer_fps = w.cspec["fps" as keyof CacheMap] as unknown as boolean;
+    ctx.footer_demo = w.cspec["demo" as keyof CacheMap] as unknown as boolean;
+    ctx.footer_id_stack = w.cspec["id_stack" as keyof CacheMap] as unknown as boolean;
+    ctx.footer_memory = w.cspec["memory" as keyof CacheMap] as unknown as boolean;                 
+                  
+    if (ctx.footer_db) {
+        // Push colour styling for the DB button
+        ImGui.PushStyleColor(ImGui.Col.Button, ctx.db_status_color);
+        if (ImGui.Button("DB")) {
+            if (typeof(window) !== "undefined") {
+                window.open(_nd_ctx.duck_journal_url);
+            }
         }
+        ImGui.PopStyleColor(1);
     }
-    ImGui.PopStyleColor(1);
-    ImGui.SameLine();
-    ImGui.Text(`${ctx.io!.Framerate.toFixed(1)} FPS avg ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame`);
-    ImGui.Checkbox("Mem use", (value = show_memory_use) => show_memory_use = value);
-    ImGui.SameLine();
-    ImGui.Checkbox("Mem edit", (value = memory_editor.Open) => memory_editor.Open = value);
-    ImGui.SameLine();
-    ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
+    if (ctx.footer_fps) {
+        ImGui.SameLine();
+        ImGui.Text(`${ctx.io!.Framerate.toFixed(1)} FPS avg ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame`);
+    }
+    if (ctx.footer_memory) {
+        ImGui.Checkbox("Mem use", (value = show_memory_use) => show_memory_use = value);
+        ImGui.SameLine();
+        ImGui.Checkbox("Mem edit", (value = memory_editor.Open) => memory_editor.Open = value);
+        ImGui.SameLine();
+        ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
+    }
     // TODO: add ID stack here...
     if (memory_editor.Open) {
         ImGui.SameLine();
         memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
 
     }
-    if (show_memory_use) {
+    if (show_memory_use && ctx.footer_memory) {
         const mi: ImGui.Bind.mallinfo = ImGui.bind.mallinfo();
         // ImGui.Text(`Total non-mmapped bytes (arena):       ${mi.arena}`);
         // ImGui.Text(`# of free chunks (ordblks):            ${mi.ordblks}`);
@@ -573,6 +585,11 @@ class NDContext {
     clamp: boolean = false;
     anyw: any | null = null;
     num_tuple3: ImGui.Tuple3<number> = [0, 0, 0];
+    footer_db: boolean = true;
+    footer_fps: boolean = true;
+    footer_demo: boolean = true;
+    footer_id_stack: boolean = true;
+    footer_memory: boolean = true;    
     data_change_msg: DataChange = {nd_type:"DataChange", old_value:null, new_value:null, cache_key:""};
     duck_op_msg: DuckOp = {nd_type:"DuckOp", db_type:"", sql:""};
     cache_ref:Cached<any>|undefined;
