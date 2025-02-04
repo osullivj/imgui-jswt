@@ -7,6 +7,7 @@ import { MemoryEditor } from "./imgui_memory_editor.js";
 let show_demo_window: boolean = false;
 let show_memory_use: boolean = false;
 let show_another_window: boolean = false;
+let show_id_stack: boolean = false;
 const clear_color: ImGui.Vec4 = new ImGui.Vec4(0.45, 0.55, 0.60, 1.00);
 
 const memory_editor: MemoryEditor = new MemoryEditor();
@@ -396,6 +397,10 @@ function render_footer(ctx:NDContext, w: Widget): void {
         ImGui.SameLine();
         ImGui.Text(`${ctx.io!.Framerate.toFixed(1)} FPS avg ${(1000.0 / ctx.io!.Framerate).toFixed(3)} ms/frame`);
     }
+    if (ctx.footer_id_stack) {
+        ImGui.Checkbox("ID Stack", (value = show_id_stack) => show_id_stack = value);
+        ImGui.SameLine();
+    }
     if (ctx.footer_memory) {
         ImGui.Checkbox("Mem use", (value = show_memory_use) => show_memory_use = value);
         ImGui.SameLine();
@@ -404,6 +409,9 @@ function render_footer(ctx:NDContext, w: Widget): void {
         ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
     }
     // TODO: add ID stack here...
+    if (ctx.footer_id_stack && show_id_stack) {
+        ImGui.ShowStackToolWindow();
+    }
     if (memory_editor.Open) {
         ImGui.SameLine();
         memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);
