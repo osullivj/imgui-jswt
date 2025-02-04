@@ -391,6 +391,7 @@ function render_footer(ctx:NDContext, w: Widget): void {
     ImGui.Checkbox("Mem edit", (value = memory_editor.Open) => memory_editor.Open = value);
     ImGui.SameLine();
     ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
+    // TODO: add ID stack here...
     if (memory_editor.Open) {
         ImGui.SameLine();
         memory_editor.DrawWindow("Memory Editor", ImGui.bind.HEAP8.buffer);

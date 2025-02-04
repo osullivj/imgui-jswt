@@ -240,7 +240,7 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
 
 
 NDContext::NDContext(NDServer& s)
-    :server(s)
+    :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0)
 {
     // emulate the main.ts NDContext fetch from server side
     std::string layout_s = server.fetch("layout");
@@ -461,7 +461,13 @@ void NDContext::render_separator(nlohmann::json& w)
 
 void NDContext::render_footer(nlohmann::json& w)
 {
-    // TODO: add DB button impl from main.ts
+    // Push colour styling for the DB button
+    ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)db_status_color);
+    if (ImGui::Button("DB")) {
+        // TODO: main.ts raises a new brwser tab here...
+    }
+    ImGui::PopStyleColor(1);
+    ImGui::SameLine();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 }
 
