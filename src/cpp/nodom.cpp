@@ -242,6 +242,9 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
 NDContext::NDContext(NDServer& s)
     :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0)
 {
+    // init status is not connected
+    db_status_color = red;
+
     // emulate the main.ts NDContext fetch from server side
     std::string layout_s = server.fetch("layout");
     layout = nlohmann::json::parse(layout_s);
@@ -562,13 +565,11 @@ void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
 
     // StackToolWindow doesn't work with modals: so to debug eg spinner we use
     // BeginPopup(). JOS 2025-02-04
-    // 
-    // if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (ImGui::BeginPopup(title.c_str(), ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    // if (ImGui::BeginPopup(title.c_str(), ImGuiWindowFlags_AlwaysAutoResize)) {
         for (int i = 0; i < pq_urls.size(); i++) ImGui::Text(pq_urls[i].get<std::string>().c_str());
-        /** TODO: debug spinner */
         if (!ImGui::Spinner("parquet_loading_spinner", 5, 2, 0)) {
-            // TODO: why doesn't spinner work?
+            // TODO: spinner always fails IsClippedEx on first render
             std::cerr << "render_duck_parquet_loading_modal: spinner fail" << std::endl;
         }
         ImGui::EndPopup();
