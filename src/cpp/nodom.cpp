@@ -461,14 +461,37 @@ void NDContext::render_separator(nlohmann::json& w)
 
 void NDContext::render_footer(nlohmann::json& w)
 {
-    // Push colour styling for the DB button
-    ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)db_status_color);
-    if (ImGui::Button("DB")) {
-        // TODO: main.ts raises a new brwser tab here...
+    // TODO: optimise local vars: these cspec are not cache refs so could
+    // bind at startup time...
+    bool db = w.value(nlohmann::json::json_pointer("/cspec/db"), true);
+    bool fps = w.value(nlohmann::json::json_pointer("/cspec/fps"), true);
+    bool demo = w.value(nlohmann::json::json_pointer("/cspec/demo"), true);
+    bool id_stack = w.value(nlohmann::json::json_pointer("/cspec/id_stack"), true);
+    bool memory = w.value(nlohmann::json::json_pointer("/cspec/memory"), true);
+
+    if (db) {
+        // Push colour styling for the DB button
+        ImGui::PushStyleColor(ImGuiCol_Button, (ImU32)db_status_color);
+        if (ImGui::Button("DB")) {
+            // TODO: main.ts raises a new brwser tab here...
+        }
+        ImGui::PopStyleColor(1);
     }
-    ImGui::PopStyleColor(1);
-    ImGui::SameLine();
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    if (fps) {
+        ImGui::SameLine();
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    }
+    /* TODO
+    if (demo) {
+
+    } */
+    if (id_stack) {
+        ImGui::ShowStackToolWindow();
+    }
+    /* TODO
+    if (memory) {
+
+    } */
 }
 
 
@@ -537,7 +560,11 @@ void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
     auto pq_urls = data[cname_cache_addr];
     std::cout << "render_duck_parquet_loading_modal: urls: " << pq_urls << std::endl;
 
-    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    // StackToolWindow doesn't work with modals: so to debug eg spinner we use
+    // BeginPopup(). JOS 2025-02-04
+    // 
+    // if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopup(title.c_str(), ImGuiWindowFlags_AlwaysAutoResize)) {
         for (int i = 0; i < pq_urls.size(); i++) ImGui::Text(pq_urls[i].get<std::string>().c_str());
         /** TODO: debug spinner */
         if (!ImGui::Spinner("parquet_loading_spinner", 5, 2, 0)) {
