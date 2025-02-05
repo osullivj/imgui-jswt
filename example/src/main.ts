@@ -496,46 +496,45 @@ function render_table(ctx:NDContext, w: Widget): void {
     console.log("render_table: cname:" + cname + ", title:" + title);
     const table_accessor = cache_access<any>(ctx, cname, empty_table);
     if (ImGui.BeginTable(cname, table_accessor.value.names.length, ctx.flags)) {
-            for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
-                ImGui.TableSetupColumn(table_accessor.value.names[col_index]);
-            }
-            ImGui.TableHeadersRow();
+        for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
+            ImGui.TableSetupColumn(table_accessor.value.names[col_index]);
+        }
+        ImGui.TableHeadersRow();
 
-            for (let row_index = 0; row_index < table_accessor.value.rows.length; row_index++) {
-                let row = table_accessor.value.rows[row_index];
-                ImGui.TableNextRow();
-                for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
-                    ImGui.TableSetColumnIndex(col_index);
-                    let property:string = table_accessor.value.names[col_index];
-                    let cell = row[property] as unknown;
-                    let ctype = table_accessor.value.types[col_index];
-                    if (cell) {
-                        switch (ctype.typeId) {
-                            case 2: // BIGINT
-                            case 5: // bigint
-                                ImGui.TextUnformatted(cell.toString());
-                                break;
-                            case 3: // decimal as double
-                                ImGui.TextUnformatted(cell.toString());
-                                break;
-                            case 7: // decimal as Uint32Array
-                                console.error("render_duck_table_summary_modal: decimal at row/col: " + row_index + "/" + col_index);
-                                break;
-                            default:
-                                try {
-                                    ImGui.TextUnformatted(cell as string);
-                                }
-                                catch (error) {
-                                    console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
-                                }
-                                break;
-                        }                        
-                    }
+        for (let row_index = 0; row_index < table_accessor.value.rows.length; row_index++) {
+            let row = table_accessor.value.rows[row_index];
+            ImGui.TableNextRow();
+            for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
+                ImGui.TableSetColumnIndex(col_index);
+                let property:string = table_accessor.value.names[col_index];
+                let cell = row[property] as unknown;
+                let ctype = table_accessor.value.types[col_index];
+                if (cell) {
+                    switch (ctype.typeId) {
+                        case 2: // BIGINT
+                        case 5: // bigint
+                            ImGui.TextUnformatted(cell.toString());
+                            break;
+                        case 3: // decimal as double
+                            ImGui.TextUnformatted(cell.toString());
+                            break;
+                        case 7: // decimal as Uint32Array
+                            console.error("render_table: decimal at row/col: " + row_index + "/" + col_index);
+                            break;
+                        default:
+                            try {
+                                ImGui.TextUnformatted(cell as string);
+                            }
+                            catch (error) {
+                                console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
+                            }
+                            break;
+                    }                        
                 }
             }
-            ImGui.EndTable();
         }
-
+        ImGui.EndTable();
+    }
 }
 
 
