@@ -69,10 +69,10 @@ var summary_request = function(tbl) {
     return {nd_type: "Summarize", sql: "summarize select * from " + tbl + ";", table: tbl};
 };
 
-function materialize(results, qid, rtype) {
+function materialize(results) {
     return {
-        query_id:qid,
-        result_type:rtype,
+        // query_id:qid,
+        // result_type:rtype,
         rows:results.toArray().map(Object.fromEntries),
         names:results.schema.fields.map((d) => d.name),
         types:results.schema.fields.map((d) => d.type)
@@ -88,6 +88,9 @@ self.onmessage = async (event) => {
             // is None on success
             await exec_duck_db_query(nd_db_request.sql);
             console.log("duck_module: ParquetScan done for " + nd_db_request.query_id);
+            postMessage({nd_type:"ParquetScanResult",query_id:nd_db_request.query_id});
+            // let scan_xfer_obj = materialize(nd_db_request.query_id, "ParquetScanResult");
+            /* old impl that did the summary so ParquetScan would have a result set
             // request a table summary: this will be quick as parquet metadata
             // will have provided this, so no real searches...
             let summary_req = summary_request(nd_db_request.query_id);
@@ -98,12 +101,16 @@ self.onmessage = async (event) => {
             console.log("duck_module: ParquetScanResult: ", sxfer_obj.query_id);
             let pq_scan_result = {nd_type:"ParquetScanResult", result:sxfer_obj};
             postMessage(pq_scan_result); // , transfer=[pq_scan_result]);
+            */
             break;
         case "Query":
             arrow_table = await exec_duck_db_query(nd_db_request.sql);
-            let qxfer_obj = materialize(arrow_table, nd_db_request.query_id, "select");
-            console.log("duck_module: QueryResult: ", qxfer_obj.query_id);
-            let query_result = {nd_type:"QueryResult", result:qxfer_obj};
+            let qxfer_obj = materialize(arrow_table);
+            console.log("duck_module: QueryResult: ", qxfer_obj);
+            let query_result = {
+                nd_type:"QueryResult", 
+                query_id:nd_db_request.query_id, 
+                result:qxfer_obj};
             postMessage(query_result); // , transfer=[query_result]);
             break;
         case "QueryResult":

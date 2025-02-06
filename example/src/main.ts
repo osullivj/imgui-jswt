@@ -780,7 +780,7 @@ class NDContext {
             dmod.addEventListener('message', this.on_duck_event);
             console.log('NDContext.check_duck_handler: window.__nodom__.duck_module recved');
             // send a test query
-            this.duck_dispatch({nd_type:"Query", sql:"select 1729;"});
+            this.duck_dispatch({nd_type:"Query", sql:"select 1729;", query_id:"ramanujan"});
         }       
     }    
 
@@ -812,12 +812,12 @@ class NDContext {
                 }
                 _nd_ctx.pop("DuckParquetLoadingModal");
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
-                _nd_ctx.action_dispatch(nd_db_request);
+                _nd_ctx.action_dispatch(nd_db_request.result.query_id, nd_db_request.nd_type);
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
-                _nd_ctx.action_dispatch(nd_db_request);
+                _nd_ctx.action_dispatch(nd_db_request.result.query_id, nd_db_request.nd_type);
                 break;
             case "DuckInstance":
                 // duck_module.js has created the duck_db instance
@@ -843,29 +843,38 @@ class NDContext {
             this.push(this.pushable.get(action) as Widget);
         }
         else {
-            // action is a key into cache:actions
+            // action is a key into cache:actions. If "actions"
+            // does not exist in the cache this will throw an exception
+            // because we haven't supplied a default val as 3rd param. JOS 2025-02-07
             const actions_accessor = cache_access<any>(this, "actions");
 
             if (actions_accessor) {
                 let actions = actions_accessor.value;
-                if (actions.has(action)) {
-                    let action_defn = actions[action];
-                    if (!("nd_events" in action_defn)) {
+                if (actions) {
+                    let action_defn:any = actions[action];
+                    if (action_defn === undefined) {
+                        console.error("NDContext.action_dispatch: actions has no " + action);
+                        return;
+                    }
+                    let event_list:any = action_defn["nd_events"];
+                    if (event_list === undefined) {
                         console.error("NDContext.action_dispatch: nd_events missing from " + action);
                         return;
                     }
-                    let event_list = action_defn["nd_events"];
-                    if (!(nd_event in event_list)) {
+                    if (!event_list.includes(nd_event)) {
                         return;
                     }
                     console.log("NDContext.action_dispatch: query_id event MATCH: " +
                                     action + "/" + nd_event);
-                    if (action_defn.has("ui")) {
-                        let w = this.pushable.get(action_defn["ui"]) as Widget;
+                    let w:Widget = action_defn["ui"];
+                    if (w) {
+                        // let w = this.pushable.get(action_defn["ui"]) as Widget;
                         this.push(w);
                     }
-                    if (action_defn.has("db")) {
-                        let db_op = action_defn["db"] as CacheMap;
+                    let db_op:CacheMap = action_defn["db"];
+                    // if (action_defn.has("db")) {
+                    if (db_op) {
+                        // let db_op = action_defn["db"] as CacheMap;
                         let sql_cache_key = db_op["sql_cname" as keyof CacheMap] as string;
                         let qid = db_op["query_id" as keyof CacheMap] as string;
                         let db_action = db_op["action" as keyof CacheMap] as string;
