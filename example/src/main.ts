@@ -259,9 +259,8 @@ function render_same_line(ctx:NDContext, w: Widget): void {
 
 function render_button(ctx:NDContext, w: Widget): void {
     let btext = w.cspec["text" as keyof CacheMap] as string;
-
     if (ImGui.Button(btext)) {
-        ctx.action_dispatch(w.cspec);
+        ctx.action_dispatch(btext, "Button");
     }
 }
 
@@ -813,10 +812,12 @@ class NDContext {
                 }
                 _nd_ctx.pop("DuckParquetLoadingModal");
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                _nd_ctx.action_dispatch(nd_db_request);
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                _nd_ctx.action_dispatch(nd_db_request);
                 break;
             case "DuckInstance":
                 // duck_module.js has created the duck_db instance
@@ -830,35 +831,56 @@ class NDContext {
 
     }
     
-    action_dispatch(cspec:CacheMap): void {
-        let action = cspec["action" as keyof CacheMap] as string;
-        switch (action) {
-            case "ParquetScan":
-                let sql_cache_key = cspec["sql" as keyof CacheMap] as string;
-                let qid_cache_key = cspec["query_id" as keyof CacheMap] as string;
-                let modal_id = cspec["modal" as keyof CacheMap] as string;
-                const sql_accessor = cache_access<string>(this, sql_cache_key);
-                const qid_accessor = cache_access<string>(this, qid_cache_key);
-                this.duck_dispatch( {
-                    nd_type:action,
-                    sql:sql_accessor.value,
-                    query_id:qid_accessor.value,
-                });
-                // if we have a widget_id='parquet_loading_modal' in layout raise it
-                if (modal_id && this.pushable.has(modal_id)) {
-                    this.push(this.pushable.get(modal_id) as Widget);
-                }
-                break;
-            default:
-                // is it a pushable widget?
-                // NB this is only for self popping modals like DuckTableSummaryModal
-                if (this.pushable.has(action)) {
-                    this.push(this.pushable.get(action) as Widget);
+    action_dispatch(action:string, nd_event:string=""): void {
+        // action: a widget_id key into pushable, or a query_id
+        //          key into cache["actions"]
+        // event: typically ParquetScanResult or QueryResult if action
+        //          *must* be supplied to match DB event/query_id combo
+        
+        // is it a pushable widget?
+        if (this.pushable.has(action) && !nd_event) {
+            console.log("NDContext.action_dispatch: widget_id MATCH: " + action);
+            this.push(this.pushable.get(action) as Widget);
+        }
+        else {
+            // action is a key into cache:actions
+            const actions_accessor = cache_access<any>(this, "actions");
+
+            if (actions_accessor) {
+                let actions = actions_accessor.value;
+                if (actions.has(action)) {
+                    let action_defn = actions[action];
+                    if (!("nd_events" in action_defn)) {
+                        console.error("NDContext.action_dispatch: nd_events missing from " + action);
+                        return;
+                    }
+                    let event_list = action_defn["nd_events"];
+                    if (!(nd_event in event_list)) {
+                        return;
+                    }
+                    console.log("NDContext.action_dispatch: query_id event MATCH: " +
+                                    action + "/" + nd_event);
+                    if (action_defn.has("ui")) {
+                        let w = this.pushable.get(action_defn["ui"]) as Widget;
+                        this.push(w);
+                    }
+                    if (action_defn.has("db")) {
+                        let db_op = action_defn["db"] as CacheMap;
+                        let sql_cache_key = db_op["sql_cname" as keyof CacheMap] as string;
+                        let qid = db_op["query_id" as keyof CacheMap] as string;
+                        let db_action = db_op["action" as keyof CacheMap] as string;
+                        const sql_accessor = cache_access<string>(this, sql_cache_key);
+                        this.duck_dispatch( {
+                            nd_type:db_action,
+                            sql:sql_accessor.value,
+                            query_id:qid,
+                        });
+                    }
                 }
                 else {
                     console.error("NDContext.action_dispatch: unrecognised " + action);
                 }
-                break;
+            }
         }
     }
     
