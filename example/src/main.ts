@@ -792,23 +792,30 @@ class NDContext {
         const nd_db_request = event.data;
         switch (nd_db_request.nd_type) {
             case "ParquetScan":
+                // go amber while scan is in progress
+                _nd_ctx.db_status_color = _nd_ctx.amber;
+                break;
             case "Query":
-                // go amber while query or scan is in progress
+                // go amber while query is in progress
                 _nd_ctx.db_status_color = _nd_ctx.amber;
                 break;
             case "ParquetScanResult":
+                // NB duckDB scan does not produce a result set
                 _nd_ctx.db_status_color = _nd_ctx.green;
+                /* TODO fix summary?
                 if (nd_db_request.result.result_type === "summary") {
                     _nd_ctx.cache.set("db_summary_"+nd_db_request.result.query_id,
                                         new Cached<any>(_nd_ctx, nd_db_request.result));
-                }
-                _nd_ctx.pop("DuckParquetLoadingModal");
-                console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                } */
+                console.log("NDContext.on_duck_event: ParquetScanResult %s",  nd_db_request.query_id);
+                // is there an action keyed off query_id/ParquetScanResult?
+                // for instance DuckParquetLoadingModals
                 _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                // is there an action keyed off query_id/QueryResult?
                 _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
             case "DuckInstance":
@@ -818,7 +825,7 @@ class NDContext {
                 _nd_ctx.check_duck_module();
                 break;
             default:
-                console.error("NDContext.on_duck_event: unexpected DB request type: ", event.data);
+                console.error("NDContext.on_duck_event: unexpected DB request type: %o", event.data);
         }
 
     }
@@ -858,18 +865,29 @@ class NDContext {
                     if (!event_list.includes(nd_event)) {
                         return;
                     }
-                    console.log("NDContext.action_dispatch: id event MATCH: " +
-                                    action + "/" + nd_event);
-                    let widget_id:string = action_defn["ui"];
-                    let w:Widget = this.pushable.get(widget_id) as Widget;
-                    if (w) {
-                        // let w = this.pushable.get(action_defn["ui"]) as Widget;
-                        this.push(w);
+                    console.log("NDContext.action_dispatch: id event MATCH: %s/%s",
+                                    action, nd_event);
+                    // an action could have a push and pop; in which case we do
+                    // the pop first. JOS 2025-02-07
+                    let push_widget_id:string = action_defn["ui_push"] as string;
+                    let pop_rname:string = action_defn["ui_pop"] as string;
+                    if (pop_rname) {
+                        console.log("NDContext.action_dispatch: pop %s", pop_rname);
+                        this.pop(pop_rname);
                     }
+                    if (push_widget_id) {
+                        console.log("NDContext.action_dispatch: push %s", push_widget_id);
+                        let w:Widget = this.pushable.get(push_widget_id) as Widget;
+                        if (w) {
+                            this.push(w);
+                        }
+                        else {
+                            console.error("NDContext.action_dispatch: not pushable %s", push_widget_id);
+                        }
+                    }
+                    
                     let db_op:CacheMap = action_defn["db"];
-                    // if (action_defn.has("db")) {
                     if (db_op) {
-                        // let db_op = action_defn["db"] as CacheMap;
                         let sql_cache_key = db_op["sql_cname" as keyof CacheMap] as string;
                         let qid = db_op["query_id" as keyof CacheMap] as string;
                         let db_action = db_op["action" as keyof CacheMap] as string;
@@ -882,7 +900,7 @@ class NDContext {
                     }
                 }
                 else {
-                    console.error("NDContext.action_dispatch: unrecognised " + action);
+                    console.error("NDContext.action_dispatch: unrecognised %s", action);
                 }
             }
         }
@@ -912,7 +930,7 @@ class NDContext {
         if (rname) {
             if (rname !== layout_element.rname) {
                 console.error("NDContext.pop: bad pop: expected " + rname +
-                    "and got " + layout_element.rname);
+                    " but got " + layout_element.rname);
             }
         }
     }
