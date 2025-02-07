@@ -814,7 +814,9 @@ class NDContext {
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
-                console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
+                console.log("NDContext.on_duck_event: QueryResult rows:%d, cols:%d", nd_db_request.result.rows.length, nd_db_request.result.names.length);
+                // post the results into the cache
+                _nd_ctx.cache.set(`${nd_db_request.query_id}_result`, new Cached<any>(_nd_ctx, nd_db_request.result));
                 // is there an action keyed off query_id/QueryResult?
                 _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
@@ -848,13 +850,12 @@ class NDContext {
             // does not exist in the cache this will throw an exception
             // because we haven't supplied a default val as 3rd param. JOS 2025-02-07
             const actions_accessor = cache_access<any>(this, "actions");
-
             if (actions_accessor) {
                 let actions = actions_accessor.value;
                 if (actions) {
                     let action_defn:any = actions[action];
                     if (action_defn === undefined) {
-                        console.error("NDContext.action_dispatch: actions has no " + action);
+                        console.log("NDContext.action_dispatch: no action defn for %s", action);
                         return;
                     }
                     let event_list:any = action_defn["nd_events"];
