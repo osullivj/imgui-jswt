@@ -148,14 +148,6 @@ interface DuckOp {
     sql:string;
 }
 
-interface DuckResultSet {
-    query_id:string;
-    result_type:string;
-    rows:any[];
-    names:string[];
-    types:string[];
-}
-
 
 function dispatch_render(ctx:NDContext, w: Widget): void {
     // Attempt to resolve rname to rfunc if not initialized
@@ -812,12 +804,12 @@ class NDContext {
                 }
                 _nd_ctx.pop("DuckParquetLoadingModal");
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
-                _nd_ctx.action_dispatch(nd_db_request.result.query_id, nd_db_request.nd_type);
+                _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
                 console.log("NDContext.on_duck_event: QueryResult rows:" + nd_db_request.result.rows.length + " cols:" + nd_db_request.result.names.length);
-                _nd_ctx.action_dispatch(nd_db_request.result.query_id, nd_db_request.nd_type);
+                _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
             case "DuckInstance":
                 // duck_module.js has created the duck_db instance
@@ -836,7 +828,9 @@ class NDContext {
         //          key into cache["actions"]
         // event: typically ParquetScanResult or QueryResult if action
         //          *must* be supplied to match DB event/query_id combo
-        
+        if (action === undefined) {
+            console.log("action undefined");
+        }
         // is it a pushable widget?
         if (this.pushable.has(action) && !nd_event) {
             console.log("NDContext.action_dispatch: widget_id MATCH: " + action);
@@ -864,9 +858,10 @@ class NDContext {
                     if (!event_list.includes(nd_event)) {
                         return;
                     }
-                    console.log("NDContext.action_dispatch: query_id event MATCH: " +
+                    console.log("NDContext.action_dispatch: id event MATCH: " +
                                     action + "/" + nd_event);
-                    let w:Widget = action_defn["ui"];
+                    let widget_id:string = action_defn["ui"];
+                    let w:Widget = this.pushable.get(widget_id) as Widget;
                     if (w) {
                         // let w = this.pushable.get(action_defn["ui"]) as Widget;
                         this.push(w);
