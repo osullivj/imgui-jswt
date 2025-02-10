@@ -267,6 +267,8 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
     else {
         ctx.flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg;
     }
+    // title is label, so must be non null for imgui identity. JOS 2025-02-10
+    if (!title) title = cname;
     console.log("render_duck_table_summary_modal: cname:" + cname + ", title:" + title);
     ImGui.OpenPopup(title);
 
@@ -802,11 +804,6 @@ class NDContext {
             case "ParquetScanResult":
                 // NB duckDB scan does not produce a result set
                 _nd_ctx.db_status_color = _nd_ctx.green;
-                /* TODO fix summary?
-                if (nd_db_request.result.result_type === "summary") {
-                    _nd_ctx.cache.set("db_summary_"+nd_db_request.result.query_id,
-                                        new Cached<any>(_nd_ctx, nd_db_request.result));
-                } */
                 console.log("NDContext.on_duck_event: ParquetScanResult %s",  nd_db_request.query_id);
                 // is there an action keyed off query_id/ParquetScanResult?
                 // for instance DuckParquetLoadingModals
@@ -814,9 +811,12 @@ class NDContext {
                 break;
             case "QueryResult":
                 _nd_ctx.db_status_color = _nd_ctx.green;
-                console.log("NDContext.on_duck_event: QueryResult rows:%d, cols:%d", nd_db_request.result.rows.length, nd_db_request.result.names.length);
+                let result_cname:string = `${nd_db_request.query_id}_result`
+                console.log("NDContext.on_duck_event: %s/QueryResult rows:%d, cols:%d cached@%s", 
+                                nd_db_request.query_id, nd_db_request.result.rows.length, 
+                                nd_db_request.result.names.length, result_cname);
                 // post the results into the cache
-                _nd_ctx.cache.set(`${nd_db_request.query_id}_result`, new Cached<any>(_nd_ctx, nd_db_request.result));
+                _nd_ctx.cache.set(result_cname, new Cached<any>(_nd_ctx, nd_db_request.result));
                 // is there an action keyed off query_id/QueryResult?
                 _nd_ctx.action_dispatch(nd_db_request.query_id, nd_db_request.nd_type);
                 break;
