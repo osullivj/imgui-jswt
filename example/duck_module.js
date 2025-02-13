@@ -38,7 +38,7 @@ URL.revokeObjectURL(db_worker_url);
 await duck_db.open({
     query: { 
         // castBigIntToDouble: true, 
-        castDecimalToDouble: true 
+        castDecimalToDouble: true
     },
 });
 console.log("duck_module.js: DuckDB instantiated ", db_worker_url);
