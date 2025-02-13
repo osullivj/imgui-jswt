@@ -164,29 +164,12 @@ function dispatch_render(ctx:NDContext, w: Widget): void {
 }
 
 
-function render_container(ctx:NDContext, w: Widget): void {
-    // TODO: get canvas style position from Home cspec
-    // We may want to switch to having canvas config in the
-    // data cache, so it can change during GUI lifetime. Not
-    // the layout cache as that only addresses what happens
-    // _inside_ a canvas.
-    /**
-    var gui_width = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
-    let gui_height = w.cspec["gui_canvas_style_width" as keyof CacheMap] as string;
-    let shell_left = w.cspec["shell_canvas_style_left" as keyof CacheMap] as string;
-    let shell_top = w.cspec["shell_canvas_style_top" as keyof CacheMap] as string;
-    if (gui_width && gui_height) {           
-        if (gui_width !== _nd_ctx.gui_width) {
-            console.log("check_canvas_config: gui_width:" + _nd_ctx.gui_width);
-        }        
+function render_children(ctx:NDContext, parent_widget: Widget): void {
+    if (parent_widget.children) {
+        for (var w of parent_widget.children) {
+            dispatch_render(ctx, w);
+        }
     }
-    let shell_canvas_container:any = document.getElementById("nodom_duck_shell_div");
-    if (shell_canvas_container?.firstChild) {
-        let shell_canvas:any = shell_canvas_container.firstChild;
-        if (shell_left) shell_canvas.style.left = shell_left;
-        if (shell_top) shell_canvas.style.left = shell_top;
-    } */
-    if (w.children) w.children.forEach( (w) => {dispatch_render(ctx, w);});
 }
 
 
@@ -195,7 +178,7 @@ function render_home(ctx:NDContext, w: Widget): void {
     // as w.cspec["title"] will not compile...
     let title = w.cspec["title" as keyof CacheMap] as string;
     ImGui.Begin(title ? title : "nodom");
-    render_container(ctx, w);
+    render_children(ctx, w);
     ImGui.End();
 }
 
