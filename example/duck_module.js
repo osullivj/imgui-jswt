@@ -89,19 +89,6 @@ self.onmessage = async (event) => {
             await exec_duck_db_query(nd_db_request.sql);
             console.log("duck_module: ParquetScan done for " + nd_db_request.query_id);
             postMessage({nd_type:"ParquetScanResult",query_id:nd_db_request.query_id});
-            // let scan_xfer_obj = materialize(nd_db_request.query_id, "ParquetScanResult");
-            /* old impl that did the summary so ParquetScan would have a result set
-            // request a table summary: this will be quick as parquet metadata
-            // will have provided this, so no real searches...
-            let summary_req = summary_request(nd_db_request.query_id);
-            console.log("duck_module: ParquetScanSummary SQL: " + summary_req.sql);
-            // NB this is the scan summary table, not the scanned table itself!
-            arrow_table = await exec_duck_db_query(summary_req.sql);
-            let sxfer_obj = materialize(arrow_table, nd_db_request.query_id, "summary");
-            console.log("duck_module: ParquetScanResult: ", sxfer_obj.query_id);
-            let pq_scan_result = {nd_type:"ParquetScanResult", result:sxfer_obj};
-            postMessage(pq_scan_result); // , transfer=[pq_scan_result]);
-            */
             break;
         case "Query":
             arrow_table = await exec_duck_db_query(nd_db_request.sql);
