@@ -329,6 +329,8 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
 function render_duck_parquet_loading_modal(ctx:NDContext, w: Widget): void {
     let title = w.cspec["title" as keyof CacheMap] as string;
     let cname = w.cspec["cname" as keyof CacheMap] as string;   // scan_urls in cache
+    // title is label, so must be non null for imgui identity. JOS 2025-02-10
+    if (!title) title = cname;
     console.log("render_duck_parquet_loading_modal: cname:" + cname + ", title:" + title);
     ImGui.OpenPopup(title);
 
@@ -469,8 +471,14 @@ function render_table(ctx:NDContext, w: Widget): void {
     else {
         ctx.flags = ImGui.TableFlags.Borders | ImGui.TableFlags.RowBg;
     }
-    console.log("render_table: cname:" + cname + ", title:" + title);
+    // title is label, so must be non null for imgui identity. JOS 2025-02-10
+    if (!title) title = cname;
+    console.log("render_table: cname:%s, title:%s", cname, title);
     const table_accessor = cache_access<any>(ctx, cname, empty_table);
+    if (!table_accessor.value.names.length) {
+        console.log("render_table: cname:%s, title:%s: empty names!", cname, title);
+        return;
+    }
     if (ImGui.BeginTable(cname, table_accessor.value.names.length, ctx.flags)) {
         for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
             ImGui.TableSetupColumn(table_accessor.value.names[col_index]);
