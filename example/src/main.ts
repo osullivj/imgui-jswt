@@ -503,14 +503,14 @@ function render_table(ctx:NDContext, w: Widget): void {
                             ImGui.TextUnformatted(cell.toString());
                             break;
                         case 7: // decimal as Uint32Array
-                            console.error("render_table: decimal at row/col: " + row_index + "/" + col_index);
+                            console.error("render_table: decimal at R%d/C%d", row_index, col_index);
                             break;
                         default:
                             try {
                                 ImGui.TextUnformatted(cell as string);
                             }
                             catch (error) {
-                                console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
+                                console.error("render_table: unknown at R%d/C%d", row_index, col_index);
                             }
                             break;
                     }                        
