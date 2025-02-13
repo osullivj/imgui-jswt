@@ -252,7 +252,7 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
     }
     // title is label, so must be non null for imgui identity. JOS 2025-02-10
     if (!title) title = cname;
-    console.log("render_duck_table_summary_modal: cname:" + cname + ", title:" + title);
+    console.log("render_duck_table_summary_modal: cname:%s, title:%s", cname, title);
     ImGui.OpenPopup(title);
 
     // Always center this window when appearing
@@ -287,14 +287,14 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
                                 ImGui.TextUnformatted(cell.toString());
                                 break;
                             case 7: // decimal as Uint32Array
-                                console.error("render_duck_table_summary_modal: decimal at row/col: " + row_index + "/" + col_index);
+                                console.error("render_duck_table_summary_modal: decimal at R%d/C%d", row_index, col_index);
                                 break;
                             default:
                                 try {
                                     ImGui.TextUnformatted(cell as string);
                                 }
                                 catch (error) {
-                                    console.error("render_duck_table_summary_modal: unknown at row/col: " + row_index + "/" + col_index);
+                                    console.error("render_duck_table_summary_modal: R%d/C%d: %s", row_index, col_index, error);
                                 }
                                 break;
                         }                        
@@ -481,7 +481,8 @@ function render_table(ctx:NDContext, w: Widget): void {
     }
     if (ImGui.BeginTable(cname, table_accessor.value.names.length, ctx.flags)) {
         for (let col_index = 0; col_index < table_accessor.value.names.length; col_index++) {
-            ImGui.TableSetupColumn(table_accessor.value.names[col_index]);
+            let col_name:string = table_accessor.value.names[col_index];
+            ImGui.TableSetupColumn(col_name, ImGui.TableColumnFlags.WidthStretch);
         }
         ImGui.TableHeadersRow();
 
@@ -495,22 +496,26 @@ function render_table(ctx:NDContext, w: Widget): void {
                 let ctype = table_accessor.value.types[col_index];
                 if (cell) {
                     switch (ctype.typeId) {
-                        case 2: // BIGINT
-                        case 5: // bigint
+                        case 2:     // BIGINT
+                        case 5:     // bigint
                             ImGui.TextUnformatted(cell.toString());
                             break;
-                        case 3: // decimal as double
+                        case 3:     // decimal as double
                             ImGui.TextUnformatted(cell.toString());
                             break;
-                        case 7: // decimal as Uint32Array
+                        case 7:     // decimal as Uint32Array
                             console.error("render_table: decimal at R%d/C%d", row_index, col_index);
+                            break;
+                        case 10:    // timestamp
+                            let dt = new Date(cell as number);
+                            ImGui.TextUnformatted(dt.toISOString());
                             break;
                         default:
                             try {
                                 ImGui.TextUnformatted(cell as string);
                             }
                             catch (error) {
-                                console.error("render_table: unknown at R%d/C%d", row_index, col_index);
+                                console.error("render_table: R%d/C%d: %s", row_index, col_index, error);
                             }
                             break;
                     }                        
