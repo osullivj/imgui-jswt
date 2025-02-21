@@ -563,10 +563,7 @@ void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
     auto pq_urls = data[cname_cache_addr];
     std::cout << "render_duck_parquet_loading_modal: urls: " << pq_urls << std::endl;
 
-    // StackToolWindow doesn't work with modals: so to debug eg spinner we use
-    // BeginPopup(). JOS 2025-02-04
     if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    // if (ImGui::BeginPopup(title.c_str(), ImGuiWindowFlags_AlwaysAutoResize)) {
         for (int i = 0; i < pq_urls.size(); i++) ImGui::Text(pq_urls[i].get<std::string>().c_str());
         if (!ImGui::Spinner("parquet_loading_spinner", 5, 2, 0)) {
             // TODO: spinner always fails IsClippedEx on first render
