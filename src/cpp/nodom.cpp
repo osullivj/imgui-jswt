@@ -12,6 +12,7 @@
 #include <functional>
 #include <vector>
 #include <filesystem>
+#include <algorithm>
 // nlohmann/json/single_include/nlohmann/json.hpp
 // pybind11
 #include <pybind11/embed.h>
@@ -351,35 +352,66 @@ void NDContext::duck_dispatch(const std::string& sql, const std::string& qid)
     std::cout << "cpp: duck_dispatch: qid:" << qid << ", sql: " << sql << std::endl;
 }
 
-void NDContext::action_dispatch(nlohmann::json& cspec)
+void NDContext::action_dispatch(const std::string& action, const std::string& nd_event)
 {
-    std::string action = cspec["action"];
-    std::cout << "cpp:action_dispatch: action:" << action << std::endl;
-    if (action == "ParquetScan") {
-        std::string sql_cache_key = cspec["sql"];
-        std::string qid_cache_key = cspec["query_id"];
-        std::string widget_id = cspec["modal"];
-        std::string sql = data[sql_cache_key];
-        std::string query_id = data[qid_cache_key];
-        duck_dispatch(sql, query_id);
-        auto it = pushables.find(widget_id);
-        // if we have a widget_id='parquet_loading_modal' in layout raise it
-        if (!widget_id.empty() && it != pushables.end()) {
-            std::cout << "cpp:action_dispatch: raising modal: " << widget_id << std::endl;
-            pending_pushes.push_back(pushables[widget_id]);
-        }
+    std::cout << "cpp:action_dispatch: action(" << action << ")" << std::endl;
+
+    if (action.empty()) {
+        std::cerr << "cpp:action_dispatch: no action specified!" << std::endl;
+        return;
+    }
+    // Is it a pushable widget? NB this is only for self popping modals like DuckTableSummaryModal.
+    // In this case we expect nd_event to be empty as we're not driven directly by the event, but
+    // by ui_push and ui_pop action qualifiers associated with the nd_event list. JOS 2025-02-21
+    // JOS 2025-02-22
+    auto it = pushables.find(action);
+    if (it != pushables.end() && nd_event.empty()) {
+        std::cout << "cpp:action_dispatch: pushable(" << action << ")" << std::endl;
+        stack.push_back(pushables[action]);
     }
     else {
-        // is it a pushable widget?
-        // NB this is only for self popping modals like DuckTableSummaryModal
-        auto it = pushables.find(action);
-        if (it != pushables.end()) {
-            stack.push_back(pushables[action]);
+        if (!data.contains("actions")) {
+            std::cerr << "cpp:action_dispatch: no actions in data!" << std::endl;
+            return;
         }
-        else {
-            std::cerr << "action_dispatch: no widget_id matching " << action.c_str() << std::endl;
+        // get hold of "actions" in data: do we have one matching action?
+        nlohmann::json actions = data["actions"];
+        if (!actions.contains(action)) {
+            std::cerr << "cpp:action_dispatch: no actions." << action << " in data!" << std::endl;
+            return;
         }
+        nlohmann::json action_defn = actions[action];
+        if (!action_defn.contains("nd_events")) {
+            std::cerr << "cpp:action_dispatch: no nd_events in actions." << action << " in data!" << std::endl;
+            return;
+        }
+        nlohmann::json nd_events = nlohmann::json::array();
+        nd_events = action_defn["nd_events"];
+        auto event_iter = action_defn.begin();
+        bool event_match = false;
+        while (event_iter != action_defn.end()) {
+            if (*event_iter == nd_event) {
+                event_match = true;
+                break;
+            }
+        }
+        if (!event_match) {
+            std::cerr << "cpp:action_dispatch: no match for nd_event(" << nd_event << ") in defn(" << action_defn << ") in data!" << std::endl;
+            return;
+        }
+        // Now we have a matched action definition in hand we can look
+        // for UI push/pop and DB scan/query. If there's both push and pop,
+        // pop goes first naturally!
+        if (action_defn.contains("ui_pop")) {
+            // for pops we supply the rname, not the pushable name so
+            // the context can check the widget type on pops
+            std::string rname(action_defn["ui_pop"]);
+            std::cout << "cpp:action_dispatch: ui_pop(" << rname << ")" << std::endl;
+            pop(rname);
+        }
+
     }
+    
 }
 
 
@@ -539,7 +571,7 @@ void NDContext::render_button(nlohmann::json& w)
 {
     std::string button_text = w.value(nlohmann::json::json_pointer("/cspec/text"), "render_button_bad_text");
     if (ImGui::Button(button_text.c_str())) {
-        action_dispatch(w["cspec"]);
+        action_dispatch(w["cspec"], "Button");
     }
 }
 
@@ -580,7 +612,26 @@ void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
 
 void NDContext::render_table(nlohmann::json& w)
 {
+    
 }
 
+void NDContext::push(nlohmann::json& w)
+{
+    stack.push_back(w);
+}
+
+void NDContext::pop(const std::string& rname)
+{
+    if (rname.empty()) {
+        stack.pop_back();
+    }
+    else {
+        nlohmann::json& w(stack.back());
+        if (w["rname"] != rname) {
+            std::cerr << "pop mismatch w.rname(" << w["rname"] << ") rname("
+                << rname << ")" << std::endl;
+        }
+    }
+}
 
 

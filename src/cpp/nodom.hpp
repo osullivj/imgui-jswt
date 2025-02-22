@@ -60,7 +60,7 @@ public:
 
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
-    void action_dispatch(nlohmann::json& cspec);
+    void action_dispatch(const std::string& action, const std::string& nd_event);
     void duck_dispatch(const std::string& sql, const std::string& qid);
     // Render funcs are members of NDContext, unlike in main.ts
     // Why? Separate standalone funcs like in main.ts cause too much
@@ -81,6 +81,9 @@ protected:
     void render_duck_table_summary_modal(nlohmann::json& w);
     void render_duck_parquet_loading_modal(nlohmann::json& w);
     void render_table(nlohmann::json& w);
+
+    void push(nlohmann::json& w);
+    void pop(const std::string& rname = "");
 
 
 private:
@@ -110,4 +113,7 @@ private:
     ImColor green;  // ImGui.COL32(102, 153, 0);
     ImColor amber;  // ImGui.COL32(255, 153, 0);
     ImColor db_status_color;
+
+    // default value for invoking std::find on nlohmann JSON iterators
+    std::string null_value = "null_value";
 };
