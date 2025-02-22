@@ -307,7 +307,7 @@ function render_duck_table_summary_modal(ctx:NDContext, w: Widget): void {
         // ImGui.Text("PLACEHOLDER");
         ImGui.Separator();
 
-        // Note the _nd_ctx.stack.pop() invocations when
+        // Note the _nd_ctx.pop() invocations when
         // OK or Cancel are shown. Because we're a modal,
         // we know we're now a Home child, so we must have
         // been pushed onto the stack...
