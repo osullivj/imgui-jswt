@@ -122,8 +122,6 @@ example/build/imgui_widgets.o: imgui/imgui_widgets.cpp
 
 example/build/ImGuiDatePicker.o: datepicker/ImGuiDatePicker.cpp
 	emcc $(FLAGS)  -I $(IMGUI_PATH) -I $(DATEPICKER_PATH) -c $< -o $@
-    
-
 
 
 # explicit list of objects
