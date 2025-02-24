@@ -386,7 +386,6 @@ function render_footer(ctx:NDContext, w: Widget): void {
         ImGui.SameLine();
         ImGui.Checkbox("Demo", (value = show_demo_window) => show_demo_window = value);      // Edit bools storing our windows open/close state  
     }
-    // TODO: add ID stack here...
     if (ctx.footer_id_stack && show_id_stack) {
         ImGui.ShowStackToolWindow();
     }
