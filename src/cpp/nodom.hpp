@@ -61,7 +61,7 @@ public:
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
     void action_dispatch(const std::string& action, const std::string& nd_event);
-    void duck_dispatch(const std::string& sql, const std::string& qid);
+    void duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid);
     // Render funcs are members of NDContext, unlike in main.ts
     // Why? Separate standalone funcs like in main.ts cause too much
     // hassle with dispatch_render passing this and templating
@@ -99,13 +99,14 @@ private:
     std::unordered_map<std::string, std::function<void(nlohmann::json& w)>> rfmap;
 
     // top level layout widgets with widget_id eg modals are in pushables
-    std::unordered_map<std::string, nlohmann::json> pushables;
+    std::unordered_map<std::string, nlohmann::json> pushable;
     // main.ts:action_dispatch is called while rendering, and changes
-    // the size ofImColor the render stack. JS will let us do that in the root
+    // the size of the render stack. JS will let us do that in the root
     // render() method. But in C++ we use an STL iterator in the root render
     // method, and that segfaults. So in C++ we have pending pushes done
     // outside the render stack walk. JOS 2025-01-31
     std::deque<nlohmann::json> pending_pushes;
+    std::deque<std::string> pending_pops;
     bool    show_id_stack = false;
 
     // colours: https://www.w3schools.com/colors/colors_picker.asp

@@ -260,7 +260,7 @@ NDContext::NDContext(NDServer& s)
         std::string widget_id = it->value("widget_id", "");
         if (!widget_id.empty()) {
             std::cout << "NDcontext.ctor: pushable: " << widget_id << ":" << *it << std::endl;
-            pushables[widget_id] = *it;
+            pushable[widget_id] = *it;
         }
     }
 
@@ -315,11 +315,21 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
 
 void NDContext::render()
 {
+    if (pending_pops.size() > 1 || pending_pushes.size() > 1) {
+        std::cerr << "render: " << pending_pops.size() << " pending pops, " << pending_pushes.size()
+            << " pending pushes" << std::endl;
+    }
+    // address pending pops first: maintaining ordering by working from front to back
+    // as that is the order they would land on the stack if not pushed during rendering
+    while (!pending_pops.empty()) {
+        pop(pending_pops.front());
+        pending_pops.pop_front();
+    }
     // drain pending_pushes onto the render stack, maintaining
     // the stack order we would have had if the push had
     // happended intra-render. JOS 2025-01-31
     while (!pending_pushes.empty()) {
-        stack.push_back(pending_pushes.front());
+        push(pending_pushes.front());
         pending_pushes.pop_front();
     }
     // This loop breaks if we raise a modal as changing stack state while this
@@ -347,9 +357,9 @@ void NDContext::dispatch_render(nlohmann::json& w)
     it->second(w);
 }
 
-void NDContext::duck_dispatch(const std::string& sql, const std::string& qid)
+void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid)
 {
-    std::cout << "cpp: duck_dispatch: qid:" << qid << ", sql: " << sql << std::endl;
+    std::cout << "cpp: duck_dispatch: nd_type(" << nd_type << "), qid(" << qid << "), sql: " << sql << std::endl;
 }
 
 void NDContext::action_dispatch(const std::string& action, const std::string& nd_event)
@@ -364,10 +374,10 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
     // In this case we expect nd_event to be empty as we're not driven directly by the event, but
     // by ui_push and ui_pop action qualifiers associated with the nd_event list. JOS 2025-02-21
     // JOS 2025-02-22
-    auto it = pushables.find(action);
-    if (it != pushables.end() && nd_event.empty()) {
+    auto it = pushable.find(action);
+    if (it != pushable.end() && nd_event.empty()) {
         std::cout << "cpp:action_dispatch: pushable(" << action << ")" << std::endl;
-        stack.push_back(pushables[action]);
+        stack.push_back(pushable[action]);
     }
     else {
         if (!data.contains("actions")) {
@@ -375,22 +385,22 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
             return;
         }
         // get hold of "actions" in data: do we have one matching action?
-        nlohmann::json actions = data["actions"];
+        nlohmann::json& actions = data["actions"];
         if (!actions.contains(action)) {
             std::cerr << "cpp:action_dispatch: no actions." << action << " in data!" << std::endl;
             return;
         }
-        nlohmann::json action_defn = actions[action];
+        nlohmann::json& action_defn = actions[action];
         if (!action_defn.contains("nd_events")) {
             std::cerr << "cpp:action_dispatch: no nd_events in actions." << action << " in data!" << std::endl;
             return;
         }
         nlohmann::json nd_events = nlohmann::json::array();
         nd_events = action_defn["nd_events"];
-        auto event_iter = action_defn.begin();
+        auto event_iter = nd_events.begin();
         bool event_match = false;
-        while (event_iter != action_defn.end()) {
-            if (*event_iter == nd_event) {
+        while (event_iter != nd_events.end()) {
+            if (*event_iter++ == nd_event) {
                 event_match = true;
                 break;
             }
@@ -405,13 +415,43 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
         if (action_defn.contains("ui_pop")) {
             // for pops we supply the rname, not the pushable name so
             // the context can check the widget type on pops
-            std::string rname(action_defn["ui_pop"]);
+            const std::string& rname(action_defn["ui_pop"]);
             std::cout << "cpp:action_dispatch: ui_pop(" << rname << ")" << std::endl;
-            pop(rname);
+            pending_pops.push_back(rname);
         }
-
+        if (action_defn.contains("ui_push")) {
+            // for pushes we supply widget_id, not the rname
+            const std::string& widget_id(action_defn["ui_push"]);
+            // salt'n'pepa in da house!
+            auto push_it = pushable.find(widget_id);
+            if (push_it != pushable.end()) {
+                std::cout << "cpp:action_dispatch: ui_push(" << widget_id << ")" << std::endl;
+                // NB action_dispatch is called by eg render_button, which ultimately is called
+                // by render(), which iterates over stack. So we cannot change stack here...
+                pending_pushes.push_back(push_it->second);
+            }
+            else {
+                std::cerr << "cpp:action_dispatch: ui_push(" << widget_id << ") no such pushable" << std::endl;
+            }
+        }
+        // Finally, do we have a DB op to handle?
+        if (action_defn.contains("db")) {
+            nlohmann::json& db_op(action_defn["db"]);
+            if (!db_op.contains("sql_cname") || !db_op.contains("query_id") || !db_op.contains("action")) {
+                std::cerr << "cpp:action_dispatch: db(" << db_op << ") missing sql_cname|query_id|action" << std::endl;
+            }
+            else {
+                const std::string& sql_cache_key(db_op["sql_cname"]);
+                if (!data.contains(sql_cache_key)) {
+                    std::cerr << "cpp:action_dispatch: db(" << db_op << ") sql_cname(" << sql_cache_key << ") does not resolve" << std::endl;
+                }
+                else {
+                    const std::string& sql(data[sql_cache_key]);
+                    duck_dispatch(db_op["action"], sql, db_op["query_id"]);
+                }
+            }
+        }
     }
-    
 }
 
 
@@ -497,7 +537,7 @@ void NDContext::render_separator(nlohmann::json& w)
 void NDContext::render_footer(nlohmann::json& w)
 {
     // TODO: optimise local vars: these cspec are not cache refs so could
-    // bind at startup time...
+    // bound at startup time...
     bool db = w.value(nlohmann::json::json_pointer("/cspec/db"), true);
     bool fps = w.value(nlohmann::json::json_pointer("/cspec/fps"), true);
     bool demo = w.value(nlohmann::json::json_pointer("/cspec/demo"), true);
@@ -569,9 +609,18 @@ void NDContext::render_text(nlohmann::json& w)
 
 void NDContext::render_button(nlohmann::json& w)
 {
-    std::string button_text = w.value(nlohmann::json::json_pointer("/cspec/text"), "render_button_bad_text");
+    if (!w.contains("cspec")) {
+        std::cerr << "render_button: no cspec in w(" << w << ")" << std::endl;
+        return;
+    }
+    nlohmann::json& cspec = w["cspec"];
+    if (!cspec.contains("text")) {
+        std::cerr << "render_button: no text in cspec(" << cspec << ")" << std::endl;
+        return;
+    }
+    const std::string& button_text = cspec["text"];
     if (ImGui::Button(button_text.c_str())) {
-        action_dispatch(w["cspec"], "Button");
+        action_dispatch(button_text, "Button");
     }
 }
 
