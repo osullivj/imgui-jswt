@@ -533,8 +533,6 @@ let nd_url = (locn:Location, upath:string): string => {
 
 // Use node-fetch for HTTP GET as it's already in package-lock.json
 // https://stackoverflow.com/questions/45748476/http-request-in-typescript
-// Use websocket-ts for websock via "npm install websocket-ts"
-// https://www.npmjs.com/package/websocket-ts
 class NDContext {
     websock: WebSocket|null = null;             // Backe end connection
     layout: Widget[] = [];                      // as served by /api/layout 
