@@ -3,9 +3,16 @@
 // If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 // websock hdrs
+#include <iostream>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/deadline_timer.hpp>
+#include <boost/function.hpp>
+#include <boost/bind.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
-#include <iostream>
+
 // imgui hdrs
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -152,6 +159,7 @@ int im_main(int argc, char** argv)
 typedef websocketpp::client<websocketpp::config::asio_client> ws_client;
 
 typedef websocketpp::lib::error_code    ws_error_code;
+typedef boost::asio::deadline_timer     asio_timer;
 
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
@@ -178,7 +186,7 @@ void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) 
 
 class NDWebSockClient {
 public:
-    NDWebSockClient(const std::string& url) : uri(url) {
+    NDWebSockClient(const std::string& url) : uri(url), timer(client.get_io_service()) {
         client.set_access_channels(websocketpp::log::alevel::all);
         client.clear_access_channels(websocketpp::log::alevel::frame_payload);
         client.init_asio();
@@ -186,6 +194,8 @@ public:
     }
 
     void run() {
+        timer.expires_from_now(boost::posix_time::millisec(16));
+        timer.async_wait(boost::bind(&NDWebSockClient::on_timout, this, ::_1));
         ws_client::connection_ptr con = client.get_connection(uri, error_code);
         if (error_code) {
             std::cout << "could not create connection because: " << error_code.message() << std::endl;
@@ -195,10 +205,13 @@ public:
         client.run();
     }
 protected:
+    void on_timout(const boost::system::error_code& e) {
+    }
 private:
     std::string     uri;
     ws_client       client;
     ws_error_code   error_code;
+    asio_timer      timer;
 };
 // need this...
 // boost::asio::deadline_timer m_timer;
