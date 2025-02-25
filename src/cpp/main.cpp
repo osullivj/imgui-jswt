@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
     // Create a client endpoint
     client c;
 
-    std::string uri = "ws://localhost:8091";
+    std::string uri = "ws://localhost:8892/api/websock";
 
     if (argc == 2) {
         uri = argv[1];
