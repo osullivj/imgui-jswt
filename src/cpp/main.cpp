@@ -149,7 +149,9 @@ int im_main(int argc, char** argv)
 }
 
 
-typedef websocketpp::client<websocketpp::config::asio_client> client;
+typedef websocketpp::client<websocketpp::config::asio_client> ws_client;
+
+typedef websocketpp::lib::error_code    ws_error_code;
 
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
@@ -160,7 +162,7 @@ typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
 
 // This message handler will be invoked once for each incoming message. It
 // prints the message and then sends a copy of the message back to the server.
-void on_message(client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
+void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
     std::cout << "on_message called with hdl: " << hdl.lock().get()
         << " and message: " << msg->get_payload()
         << std::endl;
@@ -174,42 +176,38 @@ void on_message(client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
     }
 }
 
-int main(int argc, char* argv[]) {
-    // Create a client endpoint
-    client c;
-
-    std::string uri = "ws://localhost:8892/api/websock";
-
-    if (argc == 2) {
-        uri = argv[1];
+class NDWebSockClient {
+public:
+    NDWebSockClient(const std::string& url) : uri(url) {
+        client.set_access_channels(websocketpp::log::alevel::all);
+        client.clear_access_channels(websocketpp::log::alevel::frame_payload);
+        client.init_asio();
+        client.set_message_handler(bind(&on_message, &client, ::_1, ::_2));
     }
 
-    try {
-        // Set logging to be pretty verbose (everything except message payloads)
-        c.set_access_channels(websocketpp::log::alevel::all);
-        c.clear_access_channels(websocketpp::log::alevel::frame_payload);
-
-        // Initialize ASIO
-        c.init_asio();
-
-        // Register our message handler
-        c.set_message_handler(bind(&on_message, &c, ::_1, ::_2));
-
-        websocketpp::lib::error_code ec;
-        client::connection_ptr con = c.get_connection(uri, ec);
-        if (ec) {
-            std::cout << "could not create connection because: " << ec.message() << std::endl;
-            return 0;
+    void run() {
+        ws_client::connection_ptr con = client.get_connection(uri, error_code);
+        if (error_code) {
+            std::cout << "could not create connection because: " << error_code.message() << std::endl;
+            return;
         }
+        client.connect(con);
+        client.run();
+    }
+protected:
+private:
+    std::string     uri;
+    ws_client       client;
+    ws_error_code   error_code;
+};
+// need this...
+// boost::asio::deadline_timer m_timer;
 
-        // Note that connect here only requests a connection. No network messages are
-        // exchanged until the event loop starts running in the next line.
-        c.connect(con);
-
-        // Start the ASIO io_service run loop
-        // this will cause a single connection to be made to the server. c.run()
-        // will exit when this connection is closed.
-        c.run();
+int main(int argc, char* argv[]) {
+    std::string uri = "ws://localhost:8892/api/websock";
+    try {
+        NDWebSockClient ws_client(uri);
+        ws_client.run();
     }
     catch (websocketpp::exception const& e) {
         std::cout << e.what() << std::endl;
