@@ -104,12 +104,12 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\imgui;..\..\imgui\backends;..\..\imgui\examples\libs\glfw\include;..\..\datepicker;C:\osullivj\bin\py3.12.3x64\Include;C:\osullivj\src\h3gui\venv\Lib\site-packages\pybind11\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\websocketpp;..\..\imgui;..\..\imgui\backends;..\..\imgui\examples\libs\glfw\include;..\..\datepicker;C:\osullivj\bin\py3.12.3x64\Include;C:\osullivj\src\h3gui\venv\Lib\site-packages\pybind11\include;c:\osullivj\bld\boost_1_79_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\..\imgui\examples\libs\glfw\lib-vc2010-64;C:\osullivj\bin\py3.12.3x64\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\imgui\examples\libs\glfw\lib-vc2010-64;C:\osullivj\bin\py3.12.3x64\libs;C:\osullivj\bld\boost_1_79_0\stage\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>opengl32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
       <IgnoreSpecificDefaultLibraries>msvcrt.lib</IgnoreSpecificDefaultLibraries>
