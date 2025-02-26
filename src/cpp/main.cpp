@@ -175,21 +175,7 @@ using websocketpp::lib::bind;
 // pull out the type of messages sent by our config
 typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
 
-// This message handler will be invoked once for each incoming message. It
-// prints the message and then sends a copy of the message back to the server.
-void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
-    std::cout << "on_message called with hdl: " << hdl.lock().get()
-        << " and message: " << msg->get_payload()
-        << std::endl;
 
-
-    websocketpp::lib::error_code ec;
-
-    c->send(hdl, msg->get_payload(), msg->get_opcode(), ec);
-    if (ec) {
-        std::cout << "Echo failed because: " << ec.message() << std::endl;
-    }
-}
 
 class NDWebSockClient {
 public:
@@ -197,7 +183,7 @@ public:
         client.set_access_channels(websocketpp::log::alevel::all);
         client.clear_access_channels(websocketpp::log::alevel::frame_payload);
         client.init_asio();
-        client.set_message_handler(bind(&on_message, &client, ::_1, ::_2));
+        client.set_message_handler(bind(&NDWebSockClient::on_message, this, &client, ::_1, ::_2));
     }
 
     void run() {
@@ -225,6 +211,21 @@ protected:
         }
         else {
             set_timer();
+        }
+    }
+    // This message handler will be invoked once for each incoming message. It
+    // prints the message and then sends a copy of the message back to the server.
+    void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
+        std::cout << "on_message called with hdl: " << hdl.lock().get()
+            << " and message: " << msg->get_payload()
+            << std::endl;
+
+
+        websocketpp::lib::error_code ec;
+
+        c->send(hdl, msg->get_payload(), msg->get_opcode(), ec);
+        if (ec) {
+            std::cout << "Echo failed because: " << ec.message() << std::endl;
         }
     }
 private:
