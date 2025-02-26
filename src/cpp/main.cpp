@@ -37,12 +37,17 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
-int im_main(int argc, char** argv)
+
+static bool show_demo_window = true;
+static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+// int im_main(int argc, char** argv)
+GLFWwindow* im_start()
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
-        return 1;
+        return nullptr;
 
     // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -69,8 +74,8 @@ int im_main(int argc, char** argv)
 
     // Create window with graphics context
     GLFWwindow* window = glfwCreateWindow(1280, 720, "Nodom Breadboard", NULL, NULL);
-    if (window == NULL)
-        return 1;
+    if (window == nullptr)
+        return window;
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
@@ -105,15 +110,14 @@ int im_main(int argc, char** argv)
     //IM_ASSERT(font != NULL);
 
     // Our state
-    bool show_demo_window = true;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    return window;
+}
 
-    NDServer server(argc, argv);
-    NDContext ctx(server);
 
-    // Main loop
-    while (!glfwWindowShouldClose(window))
-    {
+
+int im_render(GLFWwindow* window, NDContext& ctx)
+{
+    if (!glfwWindowShouldClose(window)) {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
@@ -142,8 +146,13 @@ int im_main(int argc, char** argv)
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
+        return 1;
     }
+    return 0;
+}
 
+void im_end(GLFWwindow* window)
+{
     // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -151,8 +160,6 @@ int im_main(int argc, char** argv)
 
     glfwDestroyWindow(window);
     glfwTerminate();
-
-    return 0;
 }
 
 
@@ -186,7 +193,7 @@ void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) 
 
 class NDWebSockClient {
 public:
-    NDWebSockClient(const std::string& url) : uri(url), timer(client.get_io_service()) {
+    NDWebSockClient(const std::string& url, NDContext& c) : uri(url), ctx(c), window(im_start()) {
         client.set_access_channels(websocketpp::log::alevel::all);
         client.clear_access_channels(websocketpp::log::alevel::frame_payload);
         client.init_asio();
@@ -194,32 +201,47 @@ public:
     }
 
     void run() {
-        timer.expires_from_now(boost::posix_time::millisec(16));
-        timer.async_wait(boost::bind(&NDWebSockClient::on_timout, this, ::_1));
         ws_client::connection_ptr con = client.get_connection(uri, error_code);
         if (error_code) {
             std::cout << "could not create connection because: " << error_code.message() << std::endl;
             return;
         }
+        set_timer();      
         client.connect(con);
         client.run();
     }
+
 protected:
-    void on_timout(const boost::system::error_code& e) {
+    void set_timer() {
+        asio_timer timer(client.get_io_service());
+        timer.expires_from_now(boost::posix_time::millisec(16));
+        timer.async_wait(boost::bind(&NDWebSockClient::on_timeout, this, ::_1));
+    }
+
+    void on_timeout(const boost::system::error_code& e) {
+        if (!im_render(window, ctx)) {
+            im_end(window);
+            client.get_io_service().stop();
+        }
+        else {
+            set_timer();
+        }
     }
 private:
     std::string     uri;
     ws_client       client;
     ws_error_code   error_code;
-    asio_timer      timer;
+    NDContext&      ctx;
+    GLFWwindow*     window;
 };
-// need this...
-// boost::asio::deadline_timer m_timer;
+
 
 int main(int argc, char* argv[]) {
     std::string uri = "ws://localhost:8892/api/websock";
+    NDServer server(argc, argv);
+    NDContext ctx(server);
     try {
-        NDWebSockClient ws_client(uri);
+        NDWebSockClient ws_client(uri, ctx);
         ws_client.run();
     }
     catch (websocketpp::exception const& e) {

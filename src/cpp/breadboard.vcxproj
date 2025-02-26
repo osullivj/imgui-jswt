@@ -106,6 +106,7 @@
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\..\websocketpp;..\..\imgui;..\..\imgui\backends;..\..\imgui\examples\libs\glfw\include;..\..\datepicker;C:\osullivj\bin\py3.12.3x64\Include;C:\osullivj\src\h3gui\venv\Lib\site-packages\pybind11\include;c:\osullivj\bld\boost_1_79_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0601;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
