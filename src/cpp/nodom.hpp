@@ -18,13 +18,16 @@
 
 class NDServer {
 public:
-    // Pass argv[1] to the ctor for the test data dir
-    NDServer(int argc, char** argv);
-    virtual ~NDServer();
-    // Emulating the NDContext.init() fetches from server
+                    // Pass argv[1] to the ctor for the test data dir
+                    NDServer(int argc, char** argv);
+    virtual         ~NDServer();
+
+                    // Emulating the NDContext.init() fetches from server
     std::string&    fetch(const std::string& key) { return json_map[key]; }
     nlohmann::json  notify_server_atomic(const std::string& caddr, int old_val, int new_val);
     nlohmann::json  notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+
+    bool            duck_app() { return is_duck_app; }
 
 
 protected:
@@ -57,6 +60,7 @@ public:
     void notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
     void apply_server_changes(nlohmann::json& server_changes);
 
+    bool duck_app() { return server.duck_app(); }
 
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke

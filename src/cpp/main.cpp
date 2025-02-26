@@ -187,13 +187,19 @@ public:
     }
 
     void run() {
-        ws_client::connection_ptr con = client.get_connection(uri, error_code);
-        if (error_code) {
-            std::cout << "could not create connection because: " << error_code.message() << std::endl;
-            return;
+        if (ctx.duck_app()) {
+            ws_client::connection_ptr con = client.get_connection(uri, error_code);
+            if (error_code) {
+                std::cerr << "NDWebSockClient: could not create connection because: "
+                                                    << error_code.message() << std::endl;
+            }
+            else {
+                client.connect(con);
+            }
         }
-        set_timer();      
-        client.connect(con);
+        // kick off the timer at the last possible minute
+        set_timer();
+        // this method just calls io_service.run()
         client.run();
     }
 
