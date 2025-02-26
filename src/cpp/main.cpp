@@ -197,10 +197,8 @@ public:
                 client.connect(con);
             }
         }
-        // kick off the timer at the last possible minute
-        set_timer();
-        // this method just calls io_service.run()
-        client.run();
+        set_timer();    // latest possible timer start
+        client.run();   // this method just calls io_service.run()
     }
 
 protected:
@@ -221,18 +219,20 @@ protected:
     }
     // This message handler will be invoked once for each incoming message. It
     // prints the message and then sends a copy of the message back to the server.
-    void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
-        std::cout << "on_message called with hdl: " << hdl.lock().get()
-            << " and message: " << msg->get_payload()
-            << std::endl;
+    void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg_ptr) {
+        std::string payload(msg_ptr->get_payload());
+        std::cout << "NDWebSockClient::on_message called with hdl: " << hdl.lock().get()
+            << " and message: " << payload << std::endl;
 
+        nlohmann::json msg_json = nlohmann::json::parse(payload);
+        ctx.on_duck_event(msg_json);
 
+        /*
         websocketpp::lib::error_code ec;
-
         c->send(hdl, msg->get_payload(), msg->get_opcode(), ec);
         if (ec) {
             std::cout << "Echo failed because: " << ec.message() << std::endl;
-        }
+        } */
     }
 private:
     std::string     uri;

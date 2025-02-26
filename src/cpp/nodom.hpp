@@ -62,6 +62,8 @@ public:
 
     bool duck_app() { return server.duck_app(); }
 
+    void on_duck_event(nlohmann::json& duck_msg);
+
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
     void action_dispatch(const std::string& action, const std::string& nd_event);
@@ -121,4 +123,6 @@ private:
 
     // default value for invoking std::find on nlohmann JSON iterators
     std::string null_value = "null_value";
+
+    bool    is_rendering;
 };

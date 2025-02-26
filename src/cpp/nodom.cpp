@@ -241,7 +241,8 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
 
 
 NDContext::NDContext(NDServer& s)
-    :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0)
+    :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0),
+    is_rendering(false)
 {
     // init status is not connected
     db_status_color = red;
@@ -312,6 +313,38 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
     apply_server_changes(server_changes);
 }
 
+void NDContext::on_duck_event(nlohmann::json& duck_msg)
+{
+    if (!duck_msg.contains("nd_type")) {
+        std::cerr << "NDContext::on_duck_event: no nd_type in " << duck_msg << std::endl;
+    }
+    const std::string& nd_type(duck_msg["nd_type"]);
+    if (nd_type == "ParquetScan") {
+        db_status_color = amber;
+    }
+    else if (nd_type == "Query") {
+        db_status_color = amber;
+    }
+
+    else if (nd_type == "ParquetScanResult") {
+        db_status_color = green;
+        action_dispatch(duck_msg["query_id"], nd_type);
+    }
+
+    else if (nd_type == "QueryResult") {
+        db_status_color = green;
+    }
+
+    else if (nd_type == "DuckInstance") {
+        // main.ts:on_duck_event invokes check_duck_module
+        // we don't need all the check_duck_module JS module stuff,
+        // so we can just flip status button color here
+        db_status_color = amber;
+    }
+    else {
+        std::cerr << "NDContext::on_duck_event: unexpected nd_type in " << duck_msg << std::endl;
+    }
+}
 
 void NDContext::render()
 {
