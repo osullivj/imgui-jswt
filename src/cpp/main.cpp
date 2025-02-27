@@ -164,16 +164,14 @@ void im_end(GLFWwindow* window)
 
 
 typedef websocketpp::client<websocketpp::config::asio_client> ws_client;
-
+typedef websocketpp::connection_hdl ws_handle;
 typedef websocketpp::lib::error_code    ws_error_code;
+typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
 typedef boost::asio::deadline_timer     asio_timer;
 
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
-
-// pull out the type of messages sent by our config
-typedef websocketpp::config::asio_client::message_type::ptr message_ptr;
 
 
 
@@ -184,10 +182,15 @@ public:
         client.clear_access_channels(websocketpp::log::alevel::frame_payload);
         client.init_asio();
         client.set_message_handler(bind(&NDWebSockClient::on_message, this, &client, ::_1, ::_2));
+        client.set_open_handler(bind(&NDWebSockClient::on_open, this, &client, ::_1));
+        client.set_close_handler(bind(&NDWebSockClient::on_close, this, &client, ::_1));
+        client.set_fail_handler(bind(&NDWebSockClient::on_fail, this, &client, ::_1));
     }
 
     void run() {
         if (ctx.duck_app()) {
+            ctx.register_ws_callback(bind(&NDWebSockClient::send, this, ::_1));
+            error_code.clear();
             ws_client::connection_ptr con = client.get_connection(uri, error_code);
             if (error_code) {
                 std::cerr << "NDWebSockClient: could not create connection because: "
@@ -199,6 +202,14 @@ public:
         }
         set_timer();    // latest possible timer start
         client.run();   // this method just calls io_service.run()
+    }
+
+    void send(const std::string& payload) {
+        error_code.clear();
+        client.send(handle, payload, websocketpp::frame::opcode::TEXT, error_code);
+        if (error_code) {
+            std::cerr << "NDWebSockClient::send: failed with " << error_code << std::endl;
+        }
     }
 
 protected:
@@ -218,24 +229,33 @@ protected:
         }
     }
 
-    void on_message(ws_client* c, websocketpp::connection_hdl h, message_ptr msg_ptr) {
+    void on_message(ws_client* c, ws_handle h, message_ptr msg_ptr) {
         std::string payload(msg_ptr->get_payload());
         std::cout << "NDWebSockClient::on_message called with hdl: " << h.lock().get()
             << " and message: " << payload << std::endl;
 
         nlohmann::json msg_json = nlohmann::json::parse(payload);
         ctx.on_duck_event(c, h, msg_json);
-
-        /*
-        websocketpp::lib::error_code ec;
-        c->send(hdl, msg->get_payload(), msg->get_opcode(), ec);
-        if (ec) {
-            std::cout << "Echo failed because: " << ec.message() << std::endl;
-        } */
     }
+
+
+    void on_open(ws_client* c, ws_handle h) {
+        std::cout << "NDWebSockClient::on_open called with hdl: " << h.lock().get() << std::endl;
+        handle = h;
+    }
+
+    void on_close(ws_client* c, ws_handle h) {
+        std::cout << "NDWebSockClient::on_close called with hdl: " << h.lock().get() << std::endl;
+    }
+
+    void on_fail(ws_client* c, ws_handle h) {
+        std::cout << "NDWebSockClient::on_fail called with hdl: " << h.lock().get() << std::endl;
+    }
+
 private:
     std::string     uri;
     ws_client       client;
+    ws_handle       handle;
     ws_error_code   error_code;
     NDContext&      ctx;
     GLFWwindow*     window;
