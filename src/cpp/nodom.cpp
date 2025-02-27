@@ -241,8 +241,7 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
 
 
 NDContext::NDContext(NDServer& s)
-    :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0),
-    is_rendering(false)
+    :server(s), red(255, 51, 0), green(102, 153, 0), amber(255, 153, 0)
 {
     // init status is not connected
     db_status_color = red;
@@ -333,21 +332,12 @@ void NDContext::on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nloh
         db_status_color = green;
     }
     else if (nd_type == "DuckInstance") {
-        // main.ts:on_duck_event invokes check_duck_module
-        // we don't need all the check_duck_module JS module stuff,
+        // main.ts:on_duck_event invokes check_duck_module.
+        // However, we don't need all the check_duck_module JS module stuff,
         // so we can just flip status button color here
         db_status_color = amber;
-        nlohmann::json test_query;
-        test_query["nd_type"] = "Query";
-        test_query["sql"] = "select 1729;";
-        test_query["query_id"] = "ramanujan";
-
-        websocketpp::lib::error_code ec;
-        ws->send(h, test_query.dump(), websocketpp::frame::opcode::TEXT, ec);
-        if (ec) {
-            std::cout << "send failed because: " << ec.message() << std::endl;
-        }
-        // duck_dispatch("Query", "select 1729;", "ramanujan");
+        // send a test query
+        duck_dispatch("Query", "select 1729;", "ramanujan");
     }
     else {
         std::cerr << "NDContext::on_duck_event: unexpected nd_type in " << duck_msg << std::endl;
@@ -398,10 +388,15 @@ void NDContext::dispatch_render(nlohmann::json& w)
     it->second(w);
 }
 
-void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid, ws_client* ws)
+void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid)
 {
-
-    std::cout << "cpp: duck_dispatch: nd_type(" << nd_type << "), qid(" << qid << "), sql: " << sql << std::endl;
+    nlohmann::json duck_request;
+    duck_request["nd_type"] = nd_type;
+    duck_request["sql"] = sql;
+    duck_request["query_id"] = qid;
+    const std::string& json(duck_request.dump());
+    std::cout << "cpp: duck_dispatch: " << json << std::endl;
+    ws_send(json);
 }
 
 void NDContext::action_dispatch(const std::string& action, const std::string& nd_event)
@@ -489,7 +484,7 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
                 }
                 else {
                     const std::string& sql(data[sql_cache_key]);
-                    // duck_dispatch(db_op["action"], sql, db_op["query_id"]);
+                    duck_dispatch(db_op["action"], sql, db_op["query_id"]);
                 }
             }
         }
