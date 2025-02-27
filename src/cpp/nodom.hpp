@@ -5,6 +5,7 @@
 #include "json.hpp"
 #include <pybind11/pybind11.h>
 #include <filesystem>
+#include <functional>
 
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
@@ -56,6 +57,7 @@ private:
     std::map<std::string, std::string>  json_map;
 };
 
+typedef std::function<void(const std::string&)> ws_sender;
 
 class NDContext {
 public:
@@ -70,10 +72,12 @@ public:
 
     void on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg);
 
+    void register_ws_callback(ws_sender send) { ws_send = send; }
+
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
     void action_dispatch(const std::string& action, const std::string& nd_event);
-    void duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid, ws_client* ws);
+    void duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid);
     // Render funcs are members of NDContext, unlike in main.ts
     // Why? Separate standalone funcs like in main.ts cause too much
     // hassle with dispatch_render passing this and templating
@@ -130,5 +134,6 @@ private:
     // default value for invoking std::find on nlohmann JSON iterators
     std::string null_value = "null_value";
 
-    bool    is_rendering;
+    // ref to NDWebSockClient::send
+    ws_sender ws_send;
 };
