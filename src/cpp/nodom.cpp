@@ -313,7 +313,7 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
     apply_server_changes(server_changes);
 }
 
-void NDContext::on_duck_event(nlohmann::json& duck_msg)
+void NDContext::on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg) 
 {
     if (!duck_msg.contains("nd_type")) {
         std::cerr << "NDContext::on_duck_event: no nd_type in " << duck_msg << std::endl;
@@ -325,21 +325,29 @@ void NDContext::on_duck_event(nlohmann::json& duck_msg)
     else if (nd_type == "Query") {
         db_status_color = amber;
     }
-
     else if (nd_type == "ParquetScanResult") {
         db_status_color = green;
         action_dispatch(duck_msg["query_id"], nd_type);
     }
-
     else if (nd_type == "QueryResult") {
         db_status_color = green;
     }
-
     else if (nd_type == "DuckInstance") {
         // main.ts:on_duck_event invokes check_duck_module
         // we don't need all the check_duck_module JS module stuff,
         // so we can just flip status button color here
         db_status_color = amber;
+        nlohmann::json test_query;
+        test_query["nd_type"] = "Query";
+        test_query["sql"] = "select 1729;";
+        test_query["query_id"] = "ramanujan";
+
+        websocketpp::lib::error_code ec;
+        ws->send(h, test_query.dump(), websocketpp::frame::opcode::TEXT, ec);
+        if (ec) {
+            std::cout << "send failed because: " << ec.message() << std::endl;
+        }
+        // duck_dispatch("Query", "select 1729;", "ramanujan");
     }
     else {
         std::cerr << "NDContext::on_duck_event: unexpected nd_type in " << duck_msg << std::endl;
@@ -390,8 +398,9 @@ void NDContext::dispatch_render(nlohmann::json& w)
     it->second(w);
 }
 
-void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid)
+void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid, ws_client* ws)
 {
+
     std::cout << "cpp: duck_dispatch: nd_type(" << nd_type << "), qid(" << qid << "), sql: " << sql << std::endl;
 }
 
@@ -480,7 +489,7 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
                 }
                 else {
                     const std::string& sql(data[sql_cache_key]);
-                    duck_dispatch(db_op["action"], sql, db_op["query_id"]);
+                    // duck_dispatch(db_op["action"], sql, db_op["query_id"]);
                 }
             }
         }

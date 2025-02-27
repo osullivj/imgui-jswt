@@ -217,15 +217,14 @@ protected:
             set_timer();
         }
     }
-    // This message handler will be invoked once for each incoming message. It
-    // prints the message and then sends a copy of the message back to the server.
-    void on_message(ws_client* c, websocketpp::connection_hdl hdl, message_ptr msg_ptr) {
+
+    void on_message(ws_client* c, websocketpp::connection_hdl h, message_ptr msg_ptr) {
         std::string payload(msg_ptr->get_payload());
-        std::cout << "NDWebSockClient::on_message called with hdl: " << hdl.lock().get()
+        std::cout << "NDWebSockClient::on_message called with hdl: " << h.lock().get()
             << " and message: " << payload << std::endl;
 
         nlohmann::json msg_json = nlohmann::json::parse(payload);
-        ctx.on_duck_event(msg_json);
+        ctx.on_duck_event(c, h, msg_json);
 
         /*
         websocketpp::lib::error_code ec;

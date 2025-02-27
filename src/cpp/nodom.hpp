@@ -5,6 +5,10 @@
 #include "json.hpp"
 #include <pybind11/pybind11.h>
 #include <filesystem>
+
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
+
 // NoDOM emulation: debugging ND impls in TS/JS is tricky. Code compiled from C++ to clang .o
 // is not available. So when we port to EM, we have to resort to printf debugging. Not good
 // when we want to understand what the "correct" imgui behaviour should be. So here we have
@@ -12,6 +16,8 @@
 // imgui logic. So we don't bother with HTTP, sockets etc as that just introduces more
 // C++ code to maintain when we just want to focus on the impl that is opaque in the browser.
 // JOS 2025-01-22
+
+typedef websocketpp::client<websocketpp::config::asio_client> ws_client;
 
 #define ND_MAX_COMBO_LIST 16
 #define ND_WC_BUF_SZ 256
@@ -62,12 +68,12 @@ public:
 
     bool duck_app() { return server.duck_app(); }
 
-    void on_duck_event(nlohmann::json& duck_msg);
+    void on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg);
 
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
     void action_dispatch(const std::string& action, const std::string& nd_event);
-    void duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid);
+    void duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid, ws_client* ws);
     // Render funcs are members of NDContext, unlike in main.ts
     // Why? Separate standalone funcs like in main.ts cause too much
     // hassle with dispatch_render passing this and templating
