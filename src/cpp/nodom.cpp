@@ -346,7 +346,7 @@ void NDContext::on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nloh
 
 void NDContext::render()
 {
-    if (pending_pops.size() > 1 || pending_pushes.size() > 1) {
+    if (pending_pops.size() || pending_pushes.size()) {
         std::cerr << "render: " << pending_pops.size() << " pending pops, " << pending_pushes.size()
             << " pending pushes" << std::endl;
     }
@@ -401,10 +401,10 @@ void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql
 
 void NDContext::action_dispatch(const std::string& action, const std::string& nd_event)
 {
-    std::cout << "cpp:action_dispatch: action(" << action << ")" << std::endl;
+    std::cout << "cpp: action_dispatch: action(" << action << ")" << std::endl;
 
     if (action.empty()) {
-        std::cerr << "cpp:action_dispatch: no action specified!" << std::endl;
+        std::cerr << "cpp: action_dispatch: no action specified!" << std::endl;
         return;
     }
     // Is it a pushable widget? NB this is only for self popping modals like DuckTableSummaryModal.
@@ -413,23 +413,23 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
     // JOS 2025-02-22
     auto it = pushable.find(action);
     if (it != pushable.end() && nd_event.empty()) {
-        std::cout << "cpp:action_dispatch: pushable(" << action << ")" << std::endl;
+        std::cout << "cpp: action_dispatch: pushable(" << action << ")" << std::endl;
         stack.push_back(pushable[action]);
     }
     else {
         if (!data.contains("actions")) {
-            std::cerr << "cpp:action_dispatch: no actions in data!" << std::endl;
+            std::cerr << "cpp: action_dispatch: no actions in data!" << std::endl;
             return;
         }
         // get hold of "actions" in data: do we have one matching action?
         nlohmann::json& actions = data["actions"];
         if (!actions.contains(action)) {
-            std::cerr << "cpp:action_dispatch: no actions." << action << " in data!" << std::endl;
+            std::cerr << "cpp: action_dispatch: no actions." << action << " in data!" << std::endl;
             return;
         }
         nlohmann::json& action_defn = actions[action];
         if (!action_defn.contains("nd_events")) {
-            std::cerr << "cpp:action_dispatch: no nd_events in actions." << action << " in data!" << std::endl;
+            std::cerr << "cpp: action_dispatch: no nd_events in actions." << action << " in data!" << std::endl;
             return;
         }
         nlohmann::json nd_events = nlohmann::json::array();
@@ -443,7 +443,7 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
             }
         }
         if (!event_match) {
-            std::cerr << "cpp:action_dispatch: no match for nd_event(" << nd_event << ") in defn(" << action_defn << ") in data!" << std::endl;
+            std::cerr << "cpp: action_dispatch: no match for nd_event(" << nd_event << ") in defn(" << action_defn << ") in data!" << std::endl;
             return;
         }
         // Now we have a matched action definition in hand we can look
@@ -453,7 +453,7 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
             // for pops we supply the rname, not the pushable name so
             // the context can check the widget type on pops
             const std::string& rname(action_defn["ui_pop"]);
-            std::cout << "cpp:action_dispatch: ui_pop(" << rname << ")" << std::endl;
+            std::cout << "cpp: action_dispatch: ui_pop(" << rname << ")" << std::endl;
             pending_pops.push_back(rname);
         }
         if (action_defn.contains("ui_push")) {
@@ -462,25 +462,25 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
             // salt'n'pepa in da house!
             auto push_it = pushable.find(widget_id);
             if (push_it != pushable.end()) {
-                std::cout << "cpp:action_dispatch: ui_push(" << widget_id << ")" << std::endl;
+                std::cout << "cpp: action_dispatch: ui_push(" << widget_id << ")" << std::endl;
                 // NB action_dispatch is called by eg render_button, which ultimately is called
                 // by render(), which iterates over stack. So we cannot change stack here...
                 pending_pushes.push_back(push_it->second);
             }
             else {
-                std::cerr << "cpp:action_dispatch: ui_push(" << widget_id << ") no such pushable" << std::endl;
+                std::cerr << "cpp: action_dispatch: ui_push(" << widget_id << ") no such pushable" << std::endl;
             }
         }
         // Finally, do we have a DB op to handle?
         if (action_defn.contains("db")) {
             nlohmann::json& db_op(action_defn["db"]);
             if (!db_op.contains("sql_cname") || !db_op.contains("query_id") || !db_op.contains("action")) {
-                std::cerr << "cpp:action_dispatch: db(" << db_op << ") missing sql_cname|query_id|action" << std::endl;
+                std::cerr << "cpp: action_dispatch: db(" << db_op << ") missing sql_cname|query_id|action" << std::endl;
             }
             else {
                 const std::string& sql_cache_key(db_op["sql_cname"]);
                 if (!data.contains(sql_cache_key)) {
-                    std::cerr << "cpp:action_dispatch: db(" << db_op << ") sql_cname(" << sql_cache_key << ") does not resolve" << std::endl;
+                    std::cerr << "cpp: action_dispatch: db(" << db_op << ") sql_cname(" << sql_cache_key << ") does not resolve" << std::endl;
                 }
                 else {
                     const std::string& sql(data[sql_cache_key]);
@@ -708,15 +708,16 @@ void NDContext::push(nlohmann::json& w)
 
 void NDContext::pop(const std::string& rname)
 {
-    if (rname.empty()) {
-        stack.pop_back();
-    }
-    else {
+    // if rname is empty we pop without checks
+    // if rname specifies a class we check the
+    //      popped widget rname
+    if (!rname.empty()) {
         nlohmann::json& w(stack.back());
         if (w["rname"] != rname) {
             std::cerr << "pop mismatch w.rname(" << w["rname"] << ") rname("
                 << rname << ")" << std::endl;
         }
+        stack.pop_back();
     }
 }
 
