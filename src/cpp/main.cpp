@@ -231,8 +231,8 @@ protected:
 
     void on_message(ws_client* c, ws_handle h, message_ptr msg_ptr) {
         std::string payload(msg_ptr->get_payload());
-        std::cout << "NDWebSockClient::on_message called with hdl: " << h.lock().get()
-            << " and message: " << payload << std::endl;
+        std::cout << "NDWebSockClient::on_message: hdl( " << h.lock().get()
+            << ") msg: " << payload << std::endl;
 
         nlohmann::json msg_json = nlohmann::json::parse(payload);
         ctx.on_duck_event(c, h, msg_json);
@@ -240,16 +240,16 @@ protected:
 
 
     void on_open(ws_client* c, ws_handle h) {
-        std::cout << "NDWebSockClient::on_open called with hdl: " << h.lock().get() << std::endl;
+        std::cout << "NDWebSockClient::on_open: hdl:" << h.lock().get() << std::endl;
         handle = h;
     }
 
     void on_close(ws_client* c, ws_handle h) {
-        std::cout << "NDWebSockClient::on_close called with hdl: " << h.lock().get() << std::endl;
+        std::cout << "NDWebSockClient::on_close: hdl: " << h.lock().get() << std::endl;
     }
 
     void on_fail(ws_client* c, ws_handle h) {
-        std::cout << "NDWebSockClient::on_fail called with hdl: " << h.lock().get() << std::endl;
+        std::cout << "NDWebSockClient::on_fail: hdl: " << h.lock().get() << std::endl;
     }
 
 private:
