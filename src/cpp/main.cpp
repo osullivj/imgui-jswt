@@ -220,12 +220,20 @@ protected:
     }
 
     void on_timeout(const boost::system::error_code& e) {
+        // if im_render returns false someone has closed the app via GUI
         if (!im_render(window, ctx)) {
             im_end(window);
             client.get_io_service().stop();
         }
         else {
             set_timer();
+            // are there any responses from the python side?
+            while (!python_responses.empty()) {
+                python_responses.pop();
+                std::cerr << "NDWebSockClient::on_timeout: python_responses not empty!" << std::endl;
+            }
+            ctx.get_server_responses(python_responses);
+            ctx.apply_server_changes(python_responses);
         }
     }
 
@@ -259,6 +267,7 @@ private:
     ws_error_code   error_code;
     NDContext&      ctx;
     GLFWwindow*     window;
+    std::queue<nlohmann::json>  python_responses;
 };
 
 

@@ -34,10 +34,12 @@ static char* sys_cs("sys");
 static char* path_cs("path");
 static char* service_cs("service");
 static char* breadboard_cs("breadboard");
+static char* duck_module_cs("duck_module");
+static char* empty_cs("empty");
 
 
 NDServer::NDServer(int argc, char** argv)
-    :is_duck_app(false)
+    :is_duck_app(false), done(false)
 {
     std::string usage("breadboard <breadboard_config_json_path> <test_dir>");
     if (argc < 3) {
@@ -112,6 +114,12 @@ bool NDServer::init_python()
         pybind11::object service = test_module.attr(service_cs);
         on_data_change_f = service.attr(on_data_change_cs);
         is_duck_app = pybind11::bool_(service.attr(is_duck_app_cs));
+
+        if (is_duck_app) {
+            auto duck_module = pybind11::module_::import(duck_module_cs);
+            pybind11::object duck_service = duck_module.attr(service_cs);
+            duck_request_f = duck_service.attr("request");
+        }
     }
     catch (pybind11::error_already_set& ex) {
         std::cerr << ex.what() << std::endl;
@@ -148,12 +156,13 @@ bool NDServer::load_json()
 }
 
 
-void NDServer::compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j)
+void NDServer::compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j, const std::string& type_filter)
 {
+    // TODO: a better STLish predicate based filtering mechanism. Maybe a lambda as param?
     for (int i = 0; i < server_changes_p.size(); i++) {
         pybind11::dict change_p = server_changes_p[i];
         std::string nd_type = pyjson::to_json(change_p[nd_type_cs]);
-        if (nd_type == data_change_cs) {
+        if (nd_type == type_filter || type_filter.empty()) {
             nlohmann::json change_j;
             change_j[nd_type_cs] = pybind11::str(data_change_cs);
             change_j[cache_key_cs] = pyjson::to_json(change_p[cache_key_cs]);
@@ -164,6 +173,14 @@ void NDServer::compose_server_changes(pybind11::list& server_changes_p, nlohmann
     }
 }
 
+
+void NDServer::get_server_responses(std::queue<nlohmann::json>& responses)
+{
+    boost::unique_lock<boost::mutex> from_lock(from_mutex);
+    from_python.swap(responses);
+}
+
+/* original notify_server_atomic
 nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
 {
     std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
@@ -179,11 +196,6 @@ nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_
     nd_message[new_value_cs] = new_val;
     nd_message[old_value_cs] = old_val;
 
-    std::cout << "cpp: notify_server_atomic: " << nd_type_cs << ":" << data_change_cs << std::endl;
-    std::cout << "cpp: notify_server_atomic: " << cache_key_cs << ":" << caddr << std::endl;
-    std::cout << "cpp: notify_server_atomic: " << new_value_cs << ":" << new_val << std::endl;
-    std::cout << "cpp: notify_server_atomic: " << old_value_cs << ":" << old_val << std::endl;
-
     // TODO: debug Python mem issue: suspect that the std::string cache_key is holding
     // a Python char* which gets copied into the json array. apply_server_changes() is
     // invoked by our caller
@@ -191,6 +203,24 @@ nlohmann::json NDServer::notify_server_atomic(const std::string& caddr, int old_
     nlohmann::json server_changes_j = nlohmann::json::array();
     compose_server_changes(server_changes_p, server_changes_j);
     return server_changes_j;
+} */
+
+
+void NDServer::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
+{
+    std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
+    // build a JSON msg for the to_python Q
+    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {new_value_cs, new_val}, {old_value_cs, old_val} };
+    try {
+        // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
+        boost::unique_lock<boost::mutex> to_lock(to_mutex);
+        to_python.push(msg);
+    }
+    catch (...) {
+        std::cerr << "notify_server_atomic EXCEPTION!" << std::endl;
+    }
+    // lock is out of scope so released: signal py thread to wake up
+    to_cond.notify_one();
 }
 
 
@@ -201,7 +231,7 @@ void json_atomic_array_to_python_list(nlohmann::json& atomic_array_j, pybind11::
     }
 }
 
-
+/* old version +
 nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
     std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
@@ -218,11 +248,6 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
     nd_message[new_value_cs] = array_new_p;
     nd_message[old_value_cs] = array_old_p;
 
-    std::cout << "cpp: notify_server_array: " << nd_type_cs << ":" << data_change_cs << std::endl;
-    std::cout << "cpp: notify_server_array: " << cache_key_cs << ":" << caddr << std::endl;
-    std::cout << "cpp: notify_server_array: " << new_value_cs << ":" << new_val << std::endl;
-    std::cout << "cpp: notify_server_array: " << old_value_cs << ":" << old_val << std::endl;
-
     try {
         pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
         nlohmann::json server_changes_j = nlohmann::json::array();
@@ -237,6 +262,88 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
         std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
     }
     return nlohmann::json::array();
+} */
+
+
+
+nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+{
+    std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
+
+
+    // the client has set data[caddr]=new_val, so let the server side python know so
+    // it can react with its own changes
+    pybind11::dict nd_message;
+    // NDAPIApp.on_ws_message() invokes on_data_change() to apply the changes to the
+    // server side cache
+    nd_message[nd_type_cs] = pybind11::str(data_change_cs);
+    nd_message[cache_key_cs] = pybind11::str(caddr.c_str());
+    pybind11::list array_new_p, array_old_p;
+    json_atomic_array_to_python_list(new_val, array_new_p);
+    json_atomic_array_to_python_list(old_val, array_old_p);
+    nd_message[new_value_cs] = array_new_p;
+    nd_message[old_value_cs] = array_old_p;
+
+    try {
+        pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
+        nlohmann::json server_changes_j = nlohmann::json::array();
+        compose_server_changes(server_changes_p, server_changes_j, data_change_s);
+        return server_changes_j;
+    }
+    catch (pybind11::error_already_set& ex) {
+        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
+
+    }
+    catch (pybind11::cast_error& ex) {
+        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
+    }
+    return nlohmann::json::array();
+}
+
+
+void NDServer::python_thread()
+{
+    pybind11::list response_list_p;
+    nlohmann::json response_list_j;
+
+    // https://www.boost.org/doc/libs/1_34_0/doc/html/boost/condition.html
+    // A condition object is always used in conjunction with a mutex object (an object
+    // whose type is a model of a Mutex or one of its refinements). The mutex object
+    // must be locked prior to waiting on the condition, which is verified by passing a lock
+    // object (an object whose type is a model of Lock or one of its refinements) to the
+    // condition object's wait functions. Upon blocking on the condition object, the thread
+    // unlocks the mutex object. When the thread returns from a call to one of the condition object's
+    // wait functions the mutex object is again locked. The tricky unlock/lock sequence is performed
+    // automatically by the condition object's wait functions.
+    while (!done) {
+        boost::unique_lock<boost::mutex> to_lock(to_mutex);
+        to_cond.wait(to_lock);
+        // thead quiesces in the wait above, with to_mutex
+        // unlocked so the C++ thread can add work items
+        while (!to_python.empty()) {
+            nlohmann::json msg(to_python.front());
+            to_python.pop();
+            if (!msg.contains("nd_type")) {
+                std::cerr << "NDServer::python_thread: nd_type missing: " << msg << std::endl;
+                continue;
+            }
+            std::string nd_type(msg["nd_type"]);
+            if (nd_type == data_change_s) {
+                response_list_p = on_data_change_f(breadboard_cs, pyjson::from_json(msg));
+                compose_server_changes(response_list_p, response_list_j, data_change_s);
+            }
+            else {
+                // not a DataChange, so must be DB
+                response_list_p = duck_request_f(breadboard_cs, msg);
+                compose_server_changes(response_list_p, response_list_j, empty_cs);
+            }
+            // lock response Q and enqueue the changes
+            boost::unique_lock<boost::mutex> from_lock(from_mutex);
+            for (auto change : response_list_j) {
+                from_python.push(change);
+            }
+        }
+    }
 }
 
 
@@ -282,17 +389,38 @@ NDContext::NDContext(NDServer& s)
 }
 
 
+void NDContext::apply_server_changes(std::queue<nlohmann::json>& server_changes)
+{
+    // server_changes will be a list of json obj copied out of a pybind11
+    // list of py dicts. So use C++11 auto range...
+    while (!server_changes.empty()) {
+        nlohmann::json& change = server_changes.front();
+        // polymorphic as types are hidden inside change
+        if (change["nd_type"] == data_change_cs)
+            data[change[cache_key_cs]] = change[new_value_cs];
+        server_changes.pop();
+    }
+}
+
+
+/*
 void NDContext::apply_server_changes(nlohmann::json& server_changes)
 {
     // server_changes will be a list of json obj copied out of a pybind11
     // list of py dicts. So use C++11 auto range...
     for (auto change : server_changes) {
         // polymorphic as types are hidden inside change
-        data[change[cache_key_cs]] = change[new_value_cs];
+        if (change["nd_type"] == data_change_cs)
+            data[change[cache_key_cs]] = change[new_value_cs];
     }
+} */
+
+void NDContext::get_server_responses(std::queue<nlohmann::json>& responses)
+{
+    server.get_server_responses(responses);
 }
 
-
+/* old version
 void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
 {
     // server.notify_server_atomic() will use invoke python, and return a json list
@@ -300,9 +428,15 @@ void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int 
     pybind11::gil_scoped_acquire acquire;
     nlohmann::json server_changes = server.notify_server_atomic(caddr, old_val, new_val);
     apply_server_changes(server_changes);
+} */
+
+
+void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
+{
+    server.notify_server_atomic(caddr, old_val, new_val);
 }
 
-
+/* old ver
 void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
     // server.notify_server_atomic() will use invoke python, and return a json list
@@ -310,7 +444,16 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
     pybind11::gil_scoped_acquire acquire;
     nlohmann::json server_changes = server.notify_server_array(caddr, old_val, new_val);
     apply_server_changes(server_changes);
+} */
+
+
+
+
+void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+{
+    server.notify_server_array(caddr, old_val, new_val);
 }
+
 
 void NDContext::on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg) 
 {

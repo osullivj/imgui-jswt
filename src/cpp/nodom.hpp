@@ -6,7 +6,8 @@
 #include <pybind11/pybind11.h>
 #include <filesystem>
 #include <functional>
-
+#include <boost/atomic.hpp>
+#include <boost/thread.hpp>
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
 
@@ -31,22 +32,32 @@ public:
 
                     // Emulating the NDContext.init() fetches from server
     std::string&    fetch(const std::string& key) { return json_map[key]; }
-    nlohmann::json  notify_server_atomic(const std::string& caddr, int old_val, int new_val);
+    // nlohmann::json  notify_server_atomic(const std::string& caddr, int old_val, int new_val);
     nlohmann::json  notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
 
     bool            duck_app() { return is_duck_app; }
+
+    // cpp thread
+    void            notify_server_atomic(const std::string& caddr, int old_val, int new_val);
+
+    void            get_server_responses(std::queue<nlohmann::json>& responses);
+
+    // py thread
+    void            python_thread();
 
 
 protected:
     bool load_json();
     bool init_python();
     bool fini_python();
-    void compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j);
+    void compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j,
+                                    const std::string& type_filter);
 
 
 private:
     nlohmann::json                      py_config;
     pybind11::object                    on_data_change_f;
+    pybind11::object                    duck_request_f;
     bool                                is_duck_app;
     char*                               exe;    // argv[0]
     wchar_t                             wc_buf[ND_WC_BUF_SZ];
@@ -55,6 +66,15 @@ private:
     std::string                         test_module_name;
     std::string                         test_name;
     std::map<std::string, std::string>  json_map;
+
+    // queues, mutexes and condition for managing C++ to python work
+    std::queue<nlohmann::json>          to_python;
+    std::queue<nlohmann::json>          from_python;
+    boost::mutex                        to_mutex;
+    boost::mutex                        from_mutex;
+    boost::condition_variable           to_cond;
+    boost::condition_variable           from_cond;
+    boost::atomic<bool>                 done;
 };
 
 typedef std::function<void(const std::string&)> ws_sender;
@@ -66,7 +86,9 @@ public:
 
     void notify_server_atomic(const std::string& caddr, int old_val, int new_val);
     void notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
-    void apply_server_changes(nlohmann::json& server_changes);
+    // void apply_server_changes(nlohmann::json& server_changes);
+    void apply_server_changes(std::queue<nlohmann::json>& server_changes);
+    void get_server_responses(std::queue<nlohmann::json>& responses);
 
     bool duck_app() { return server.duck_app(); }
 
