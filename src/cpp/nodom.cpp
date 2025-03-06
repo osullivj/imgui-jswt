@@ -29,8 +29,10 @@ static char* new_value_cs("new_value");
 static char* old_value_cs("old_value");
 static char* cache_key_cs("cache_key");
 static char* nd_type_cs("nd_type");
+static char* query_id_cs("query_id");
 static char* __nodom__cs("__nodom__");
 static char* sys_cs("sys");
+static char* sql_cs("sql");
 static char* path_cs("path");
 static char* service_cs("service");
 static char* breadboard_cs("breadboard");
@@ -70,17 +72,21 @@ NDServer::NDServer(int argc, char** argv)
     std::filesystem::path test_path(test_dir);
     test_module_name = test_path.stem().string();
 
-    if (!init_python()) exit(1);
-
+    // last cpp thread init job...
     load_json();
+
+    // ...now we can kick off the py thread
+    py_thread = boost::thread(&NDServer::python_thread, this);
 }
 
 NDServer::~NDServer() {
-    fini_python();
+
 }
 
 bool NDServer::init_python()
 {
+    // Running on the main thread here for py runtime init.
+    // After this method all pybind11 stuff happens in python_thread
     try {
         // See "Custom PyConfig"
         // https://raw.githubusercontent.com/pybind/pybind11/refs/heads/master/tests/test_embed/test_interpreter.cpp
@@ -266,43 +272,45 @@ nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann:
 
 
 
-nlohmann::json NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+void NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
     std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
 
-
-    // the client has set data[caddr]=new_val, so let the server side python know so
-    // it can react with its own changes
-    pybind11::dict nd_message;
-    // NDAPIApp.on_ws_message() invokes on_data_change() to apply the changes to the
-    // server side cache
-    nd_message[nd_type_cs] = pybind11::str(data_change_cs);
-    nd_message[cache_key_cs] = pybind11::str(caddr.c_str());
-    pybind11::list array_new_p, array_old_p;
-    json_atomic_array_to_python_list(new_val, array_new_p);
-    json_atomic_array_to_python_list(old_val, array_old_p);
-    nd_message[new_value_cs] = array_new_p;
-    nd_message[old_value_cs] = array_old_p;
-
+    // build a JSON msg for the to_python Q
+    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {new_value_cs, new_val}, {old_value_cs, old_val} };
     try {
-        pybind11::list server_changes_p = on_data_change_f(breadboard_cs, nd_message);
-        nlohmann::json server_changes_j = nlohmann::json::array();
-        compose_server_changes(server_changes_p, server_changes_j, data_change_s);
-        return server_changes_j;
+        // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
+        boost::unique_lock<boost::mutex> to_lock(to_mutex);
+        to_python.push(msg);
     }
-    catch (pybind11::error_already_set& ex) {
-        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
-
+    catch (...) {
+        std::cerr << "notify_server_array EXCEPTION!" << std::endl;
     }
-    catch (pybind11::cast_error& ex) {
-        std::cerr << "cpp: notify_server_atomic_array: " << ex.what() << std::endl;
-    }
-    return nlohmann::json::array();
+    // lock is out of scope so released: signal py thread to wake up
+    to_cond.notify_one();
 }
 
+void NDServer::duck_dispatch(nlohmann::json& db_request)
+{
+    std::cout << "cpp: duck_dispatch: " << db_request << std::endl;
+    try {
+        // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
+        boost::unique_lock<boost::mutex> to_lock(to_mutex);
+        to_python.push(db_request);
+    }
+    catch (...) {
+        std::cerr << "duck_dispatch EXCEPTION!" << std::endl;
+    }
+    // lock is out of scope so released: signal py thread to wake up
+    to_cond.notify_one();
+}
 
 void NDServer::python_thread()
 {
+    std::cout << "python_thread starting..." << std::endl;
+    if (!init_python()) exit(1);
+
+    std::cout << "python_thread init done" << std::endl;
     pybind11::list response_list_p;
     nlohmann::json response_list_j;
 
@@ -315,11 +323,13 @@ void NDServer::python_thread()
     // unlocks the mutex object. When the thread returns from a call to one of the condition object's
     // wait functions the mutex object is again locked. The tricky unlock/lock sequence is performed
     // automatically by the condition object's wait functions.
+
     while (!done) {
         boost::unique_lock<boost::mutex> to_lock(to_mutex);
         to_cond.wait(to_lock);
         // thead quiesces in the wait above, with to_mutex
         // unlocked so the C++ thread can add work items
+        std::cout << "python_thread: to_python depth:" << to_python.size() << std::endl;
         while (!to_python.empty()) {
             nlohmann::json msg(to_python.front());
             to_python.pop();
@@ -344,6 +354,7 @@ void NDServer::python_thread()
             }
         }
     }
+    fini_python();
 }
 
 
@@ -533,13 +544,12 @@ void NDContext::dispatch_render(nlohmann::json& w)
 
 void NDContext::duck_dispatch(const std::string& nd_type, const std::string& sql, const std::string& qid)
 {
-    nlohmann::json duck_request;
-    duck_request["nd_type"] = nd_type;
-    duck_request["sql"] = sql;
-    duck_request["query_id"] = qid;
+    nlohmann::json duck_request = { {nd_type_cs, nd_type}, {sql_cs, sql}, {query_id_cs, qid} };
+    server.duck_dispatch(duck_request);
+    /*
     const std::string& json(duck_request.dump());
     std::cout << "cpp: duck_dispatch: " << json << std::endl;
-    ws_send(json);
+    ws_send(json); */
 }
 
 void NDContext::action_dispatch(const std::string& action, const std::string& nd_event)
