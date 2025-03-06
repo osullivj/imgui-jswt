@@ -25,31 +25,33 @@ typedef websocketpp::client<websocketpp::config::asio_client> ws_client;
 #define ND_WC_BUF_SZ 256
 
 class NDServer {
-public:
-                    // Pass argv[1] to the ctor for the test data dir
+public:             // All public methods exec on the cpp thread
+
                     NDServer(int argc, char** argv);
     virtual         ~NDServer();
 
                     // Emulating the NDContext.init() fetches from server
     std::string&    fetch(const std::string& key) { return json_map[key]; }
     // nlohmann::json  notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-    nlohmann::json  notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    // nlohmann::json  notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
 
     bool            duck_app() { return is_duck_app; }
 
     // cpp thread
     void            notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-
+    void            notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    void            duck_dispatch(nlohmann::json& db_request);
     void            get_server_responses(std::queue<nlohmann::json>& responses);
-
-    // py thread
-    void            python_thread();
-
+    void            set_done(bool d) { done = d; }
 
 protected:
+    // cpp thread
     bool load_json();
+
+    // py thread
     bool init_python();
     bool fini_python();
+    void python_thread();
     void compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j,
                                     const std::string& type_filter);
 
@@ -62,9 +64,13 @@ private:
     char*                               exe;    // argv[0]
     wchar_t                             wc_buf[ND_WC_BUF_SZ];
     char*                               bb_json_path;
+
+    // these three test config strings are written once at startup
+    // time in the cpp thread, and read from the py thread
     std::string                         test_dir;
     std::string                         test_module_name;
     std::string                         test_name;
+
     std::map<std::string, std::string>  json_map;
 
     // queues, mutexes and condition for managing C++ to python work
@@ -75,6 +81,7 @@ private:
     boost::condition_variable           to_cond;
     boost::condition_variable           from_cond;
     boost::atomic<bool>                 done;
+    boost::thread                       py_thread;
 };
 
 typedef std::function<void(const std::string&)> ws_sender;
@@ -91,6 +98,7 @@ public:
     void get_server_responses(std::queue<nlohmann::json>& responses);
 
     bool duck_app() { return server.duck_app(); }
+    void set_done(bool d) { server.set_done(d); }
 
     void on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg);
 
