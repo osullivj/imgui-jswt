@@ -197,7 +197,8 @@ public:
                                                     << error_code.message() << std::endl;
             }
             else {
-                client.connect(con);
+                // TODO: possible discard the websock conn
+                // client.connect(con);
             }
         }
         set_timer();    // latest possible timer start
