@@ -762,20 +762,25 @@ void NDContext::render_date_picker(nlohmann::json& w)
         ImGuiTableFlags_NoHostExtendX | ImGuiTableFlags_NoHostExtendY;
     static int ymd_i[3] = { 0, 0, 0 };
     static float tsz[2] = { 274.5,301.5 };
-    int flags = w.value(nlohmann::json::json_pointer("/cspec/table_flags"), default_table_flags);
-    std::string ckey = w.value(nlohmann::json::json_pointer("/cspec/cname"), "render_date_picker_bad_cname");
-    nlohmann::json ymd_old_j = nlohmann::json::array();
-    ymd_old_j = data[ckey];
-    ymd_i[0] = ymd_old_j.at(0);
-    ymd_i[1] = ymd_old_j.at(1);
-    ymd_i[2] = ymd_old_j.at(2);
-    if (ImGui::DatePicker(ckey.c_str(), ymd_i, tsz, false, flags)) {
-        nlohmann::json ymd_new_j = nlohmann::json::array();
-        ymd_new_j.push_back(ymd_i[0]);
-        ymd_new_j.push_back(ymd_i[1]);
-        ymd_new_j.push_back(ymd_i[2]);
-        data[ckey] = ymd_new_j;
-        notify_server_array(ckey, ymd_old_j, ymd_new_j);
+    try {
+        int flags = w.value(nlohmann::json::json_pointer("/cspec/table_flags"), default_table_flags);
+        std::string ckey = w.value(nlohmann::json::json_pointer("/cspec/cname"), "render_date_picker_bad_cname");
+        nlohmann::json ymd_old_j = nlohmann::json::array();
+        ymd_old_j = data[ckey];
+        ymd_i[0] = ymd_old_j.at(0);
+        ymd_i[1] = ymd_old_j.at(1);
+        ymd_i[2] = ymd_old_j.at(2);
+        if (ImGui::DatePicker(ckey.c_str(), ymd_i, tsz, false, flags)) {
+            nlohmann::json ymd_new_j = nlohmann::json::array();
+            ymd_new_j.push_back(ymd_i[0]);
+            ymd_new_j.push_back(ymd_i[1]);
+            ymd_new_j.push_back(ymd_i[2]);
+            data[ckey] = ymd_new_j;
+            notify_server_array(ckey, ymd_old_j, ymd_new_j);
+        }
+    }
+    catch (nlohmann::json::exception& ex) {
+        std::cerr << "render_date_picker: " << ex.what() << std::endl;
     }
 }
 
