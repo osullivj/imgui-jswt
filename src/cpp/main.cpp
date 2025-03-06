@@ -223,8 +223,9 @@ protected:
     void on_timeout(const boost::system::error_code& e) {
         // if im_render returns false someone has closed the app via GUI
         if (!im_render(window, ctx)) {
-            im_end(window);
-            client.get_io_service().stop();
+            im_end(window);                 // imgui finalisation
+            ctx.set_done(true);             // py thread loop exit
+            client.get_io_service().stop(); // asio finalisation
         }
         else {
             set_timer();
