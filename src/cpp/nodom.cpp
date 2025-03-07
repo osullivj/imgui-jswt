@@ -85,8 +85,6 @@ NDServer::~NDServer() {
 
 bool NDServer::init_python()
 {
-    // Running on the main thread here for py runtime init.
-    // After this method all pybind11 stuff happens in python_thread
     try {
         // See "Custom PyConfig"
         // https://raw.githubusercontent.com/pybind/pybind11/refs/heads/master/tests/test_embed/test_interpreter.cpp
@@ -108,6 +106,10 @@ bool NDServer::init_python()
         // Start Python runtime
         Py_InitializeFromConfig(&config);
         // pybind11::initialize_interpreter();
+
+        // after python init, we must hold the GIL for any pybind11 invocation
+        // this gil_scoped_acquire will cover the rest of this method
+        pybind11::gil_scoped_acquire acquire;
 
         // as a sanity check, import sys and print sys.path
         auto sys_module = pybind11::module_::import(sys_cs);
@@ -307,11 +309,13 @@ void NDServer::duck_dispatch(nlohmann::json& db_request)
 
 void NDServer::python_thread()
 {
-    std::cout << "python_thread starting..." << std::endl;
-    if (!init_python()) exit(1);
+    const static char* method = "NDServer::python_thread: ";
 
-    std::cout << "python_thread init done" << std::endl;
-    pybind11::list response_list_p;
+    std::cout << method << "starting..." << std::endl;
+    // NB init_python does it's own pybind11::gil_scoped_acquire acquire;
+    if (!init_python()) exit(1);
+    std::cout << method << "init done" << std::endl;
+
     nlohmann::json response_list_j;
 
     // https://www.boost.org/doc/libs/1_34_0/doc/html/boost/condition.html
@@ -329,23 +333,41 @@ void NDServer::python_thread()
         to_cond.wait(to_lock);
         // thead quiesces in the wait above, with to_mutex
         // unlocked so the C++ thread can add work items
-        std::cout << "python_thread: to_python depth:" << to_python.size() << std::endl;
+        std::cout << method << "to_python depth : " << to_python.size() << std::endl;
         while (!to_python.empty()) {
             nlohmann::json msg(to_python.front());
             to_python.pop();
             if (!msg.contains("nd_type")) {
-                std::cerr << "NDServer::python_thread: nd_type missing: " << msg << std::endl;
+                std::cerr << method << "nd_type missing: " << msg << std::endl;
                 continue;
             }
             std::string nd_type(msg["nd_type"]);
             if (nd_type == data_change_s) {
-                response_list_p = on_data_change_f(breadboard_cs, pyjson::from_json(msg));
-                compose_server_changes(response_list_p, response_list_j, data_change_s);
+                try {
+                    pybind11::gil_scoped_acquire acquire;
+                    // explicitly avoiding move ctor here as "pyjson::from_json(msg)"
+                    // as param 2 into on_data_change_f threw an exception...
+                    pybind11::dict data_change_dict(pyjson::from_json(msg));
+                    pybind11::list response_list_p = on_data_change_f(breadboard_cs, data_change_dict);
+                    compose_server_changes(response_list_p, response_list_j, data_change_s);
+                }
+                catch (pybind11::error_already_set& ex) {
+                    std::cerr << method << nd_type << ": " << ex.what() << std::endl;
+                    continue;
+                }
             }
             else {
-                // not a DataChange, so must be DB
-                response_list_p = duck_request_f(breadboard_cs, msg);
-                compose_server_changes(response_list_p, response_list_j, empty_cs);
+                try {
+                    pybind11::gil_scoped_acquire acquire;
+                    pybind11::dict duck_request_dict(pyjson::from_json(msg));
+                    // not a DataChange, so must be DB
+                    pybind11::list response_list_p = duck_request_f(breadboard_cs, duck_request_dict);
+                    compose_server_changes(response_list_p, response_list_j, empty_cs);
+                }
+                catch (pybind11::error_already_set& ex) {
+                    std::cerr << method << nd_type << ": " << ex.what() << std::endl;
+                    continue;
+                }
             }
             // lock response Q and enqueue the changes
             boost::unique_lock<boost::mutex> from_lock(from_mutex);
