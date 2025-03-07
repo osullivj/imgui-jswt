@@ -361,7 +361,7 @@ void NDServer::python_thread()
                     pybind11::gil_scoped_acquire acquire;
                     pybind11::dict duck_request_dict(pyjson::from_json(msg));
                     // not a DataChange, so must be DB
-                    pybind11::list response_list_p = duck_request_f(breadboard_cs, duck_request_dict);
+                    pybind11::list response_list_p = duck_request_f(duck_request_dict);
                     compose_server_changes(response_list_p, response_list_j, empty_cs);
                 }
                 catch (pybind11::error_already_set& ex) {
