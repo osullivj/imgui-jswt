@@ -218,7 +218,7 @@ void NDServer::notify_server_atomic(const std::string& caddr, int old_val, int n
 {
     std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
     // build a JSON msg for the to_python Q
-    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {new_value_cs, new_val}, {old_value_cs, old_val} };
+    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {cache_key_cs, caddr}, { new_value_cs, new_val }, {old_value_cs, old_val} };
     try {
         // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
         boost::unique_lock<boost::mutex> to_lock(to_mutex);
@@ -279,7 +279,7 @@ void NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old
     std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
 
     // build a JSON msg for the to_python Q
-    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {new_value_cs, new_val}, {old_value_cs, old_val} };
+    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {cache_key_cs, caddr}, {new_value_cs, new_val}, {old_value_cs, old_val} };
     try {
         // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
         boost::unique_lock<boost::mutex> to_lock(to_mutex);
