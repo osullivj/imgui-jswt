@@ -37,7 +37,7 @@ static char* path_cs("path");
 static char* service_cs("service");
 static char* breadboard_cs("breadboard");
 static char* duck_module_cs("duck_module");
-static char* empty_cs("empty");
+static char* empty_cs("");
 
 
 NDServer::NDServer(int argc, char** argv)
@@ -164,28 +164,34 @@ bool NDServer::load_json()
 }
 
 
-void NDServer::compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j, const std::string& type_filter)
+void NDServer::marshall_server_responses(pybind11::list& server_responses_p, nlohmann::json& server_responses_j, const std::string& type_filter)
 {
+    static const char* method = "NDServer::marshall_server_responses: ";
     // TODO: a better STLish predicate based filtering mechanism. Maybe a lambda as param?
-    for (int i = 0; i < server_changes_p.size(); i++) {
-        pybind11::dict change_p = server_changes_p[i];
+    for (int i = 0; i < server_responses_p.size(); i++) {
+        pybind11::dict change_p = server_responses_p[i];
         std::string nd_type = pyjson::to_json(change_p[nd_type_cs]);
         if (nd_type == type_filter || type_filter.empty()) {
-            nlohmann::json change_j;
+            nlohmann::json change_j(pyjson::to_json(change_p));
+            /*
             change_j[nd_type_cs] = pybind11::str(data_change_cs);
             change_j[cache_key_cs] = pyjson::to_json(change_p[cache_key_cs]);
             change_j[new_value_cs] = pyjson::to_json(change_p[new_value_cs]);
-            change_j[old_value_cs] = pyjson::to_json(change_p[old_value_cs]);
-            server_changes_j.push_back(change_j);
+            change_j[old_value_cs] = pyjson::to_json(change_p[old_value_cs]); */
+            std::cout << method << change_j << server_responses_j.size() << std::endl;
+            server_responses_j.push_back(change_j);
         }
     }
+    std::cout << method << "py: " << server_responses_p.size() << ", json: " << server_responses_j.size() << std::endl;
 }
 
 
 void NDServer::get_server_responses(std::queue<nlohmann::json>& responses)
 {
+    static const char* method = "NDServer::get_server_responses: ";
     boost::unique_lock<boost::mutex> from_lock(from_mutex);
     from_python.swap(responses);
+    std::cout << method << responses.size() << " responses" << std::endl;
 }
 
 /* original notify_server_atomic
@@ -316,7 +322,7 @@ void NDServer::python_thread()
     if (!init_python()) exit(1);
     std::cout << method << "init done" << std::endl;
 
-    nlohmann::json response_list_j;
+    nlohmann::json response_list_j = nlohmann::json::array();
 
     // https://www.boost.org/doc/libs/1_34_0/doc/html/boost/condition.html
     // A condition object is always used in conjunction with a mutex object (an object
@@ -337,19 +343,19 @@ void NDServer::python_thread()
         while (!to_python.empty()) {
             nlohmann::json msg(to_python.front());
             to_python.pop();
-            if (!msg.contains("nd_type")) {
+            if (!msg.contains(nd_type_cs)) {
                 std::cerr << method << "nd_type missing: " << msg << std::endl;
                 continue;
             }
-            std::string nd_type(msg["nd_type"]);
+            std::string nd_type(msg[nd_type_cs]);
             if (nd_type == data_change_s) {
                 try {
                     pybind11::gil_scoped_acquire acquire;
-                    // explicitly avoiding move ctor here as "pyjson::from_json(msg)"
+                    // explicitly avoiding move ctor here rather than using "pyjson::from_json(msg)"
                     // as param 2 into on_data_change_f threw an exception...
                     pybind11::dict data_change_dict(pyjson::from_json(msg));
                     pybind11::list response_list_p = on_data_change_f(breadboard_cs, data_change_dict);
-                    compose_server_changes(response_list_p, response_list_j, data_change_s);
+                    marshall_server_responses(response_list_p, response_list_j, data_change_s);
                 }
                 catch (pybind11::error_already_set& ex) {
                     std::cerr << method << nd_type << ": " << ex.what() << std::endl;
@@ -362,18 +368,21 @@ void NDServer::python_thread()
                     pybind11::dict duck_request_dict(pyjson::from_json(msg));
                     // not a DataChange, so must be DB
                     pybind11::list response_list_p = duck_request_f(duck_request_dict);
-                    compose_server_changes(response_list_p, response_list_j, empty_cs);
+                    marshall_server_responses(response_list_p, response_list_j, empty_cs);
                 }
                 catch (pybind11::error_already_set& ex) {
                     std::cerr << method << nd_type << ": " << ex.what() << std::endl;
                     continue;
                 }
             }
-            // lock response Q and enqueue the changes
+            // lock response Q and enqueue the changes, then clear the local
+            // response Q before another go around
             boost::unique_lock<boost::mutex> from_lock(from_mutex);
-            for (auto change : response_list_j) {
-                from_python.push(change);
+            for (auto resp : response_list_j) {
+                std::cout << method << resp << std::endl;
+                from_python.push(resp);
             }
+            response_list_j.clear();
         }
     }
     fini_python();
@@ -422,16 +431,22 @@ NDContext::NDContext(NDServer& s)
 }
 
 
-void NDContext::apply_server_changes(std::queue<nlohmann::json>& server_changes)
+void NDContext::dispatch_server_responses(std::queue<nlohmann::json>& responses)
 {
+    const static char* method = "NDContext::dispatch_server_responses: ";
     // server_changes will be a list of json obj copied out of a pybind11
     // list of py dicts. So use C++11 auto range...
-    while (!server_changes.empty()) {
-        nlohmann::json& change = server_changes.front();
+    while (!responses.empty()) {
+        nlohmann::json& resp = responses.front();
+        std::cout << method << resp << std::endl;
         // polymorphic as types are hidden inside change
-        if (change["nd_type"] == data_change_cs)
-            data[change[cache_key_cs]] = change[new_value_cs];
-        server_changes.pop();
+        if (resp[nd_type_cs] == data_change_cs) {
+            data[resp[cache_key_cs]] = resp[new_value_cs];
+        }
+        else {
+            on_duck_event(resp);
+        }
+        responses.pop();
     }
 }
 
@@ -488,11 +503,14 @@ void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& ol
 }
 
 
-void NDContext::on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg) 
+void NDContext::on_duck_event(/* ws_client* ws, websocketpp::connection_hdl h, */ nlohmann::json& duck_msg)
 {
+    const static char* method = "NDContext::on_duck_event: ";
+
     if (!duck_msg.contains("nd_type")) {
         std::cerr << "NDContext::on_duck_event: no nd_type in " << duck_msg << std::endl;
     }
+    std::cout << method << duck_msg << std::endl;
     const std::string& nd_type(duck_msg["nd_type"]);
     if (nd_type == "ParquetScan") {
         db_status_color = amber;
