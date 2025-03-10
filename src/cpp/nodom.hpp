@@ -35,8 +35,7 @@ public:             // All public methods exec on the cpp thread
     bool            duck_app() { return is_duck_app; }
 
     // cpp thread
-    void            notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-    void            notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    void            notify_server(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
     void            duck_dispatch(nlohmann::json& db_request);
     void            get_server_responses(std::queue<nlohmann::json>& responses);
     void            set_done(bool d) { done = d; }
@@ -88,8 +87,7 @@ public:
     NDContext(NDServer& s);
     void render();                              // invoked by main loop
 
-    void notify_server_atomic(const std::string& caddr, int old_val, int new_val);
-    void notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
+    void notify_server(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
     void dispatch_server_responses(std::queue<nlohmann::json>& responses);
     void get_server_responses(std::queue<nlohmann::json>& responses);
 

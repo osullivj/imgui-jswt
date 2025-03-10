@@ -190,24 +190,6 @@ void NDServer::get_server_responses(std::queue<nlohmann::json>& responses)
 }
 
 
-void NDServer::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
-{
-    std::cout << "cpp: notify_server_atomic: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
-    // build a JSON msg for the to_python Q
-    nlohmann::json msg = { {nd_type_cs, data_change_cs}, {cache_key_cs, caddr}, { new_value_cs, new_val }, {old_value_cs, old_val} };
-    try {
-        // grab lock for this Q: should be free as ::python_thread should be in to_cond.wait()
-        boost::unique_lock<boost::mutex> to_lock(to_mutex);
-        to_python.push(msg);
-    }
-    catch (...) {
-        std::cerr << "notify_server_atomic EXCEPTION!" << std::endl;
-    }
-    // lock is out of scope so released: signal py thread to wake up
-    to_cond.notify_one();
-}
-
-
 void json_atomic_array_to_python_list(nlohmann::json& atomic_array_j, pybind11::list& list_p)
 {
     for (auto it : atomic_array_j) {
@@ -216,9 +198,9 @@ void json_atomic_array_to_python_list(nlohmann::json& atomic_array_j, pybind11::
 }
 
 
-void NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
+void NDServer::notify_server(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
-    std::cout << "cpp: notify_server_array: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
+    std::cout << "cpp: notify_server: " << caddr << ", old: " << old_val << ", new: " << new_val << std::endl;
 
     // build a JSON msg for the to_python Q
     nlohmann::json msg = { {nd_type_cs, data_change_cs}, {cache_key_cs, caddr}, {new_value_cs, new_val}, {old_value_cs, old_val} };
@@ -228,7 +210,7 @@ void NDServer::notify_server_array(const std::string& caddr, nlohmann::json& old
         to_python.push(msg);
     }
     catch (...) {
-        std::cerr << "notify_server_array EXCEPTION!" << std::endl;
+        std::cerr << "notify_server EXCEPTION!" << std::endl;
     }
     // lock is out of scope so released: signal py thread to wake up
     to_cond.notify_one();
@@ -393,15 +375,9 @@ void NDContext::get_server_responses(std::queue<nlohmann::json>& responses)
 }
 
 
-void NDContext::notify_server_atomic(const std::string& caddr, int old_val, int new_val)
+void NDContext::notify_server(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
 {
-    server.notify_server_atomic(caddr, old_val, new_val);
-}
-
-
-void NDContext::notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val)
-{
-    server.notify_server_array(caddr, old_val, new_val);
+    server.notify_server(caddr, old_val, new_val);
 }
 
 
@@ -617,7 +593,7 @@ void NDContext::render_input_int(nlohmann::json& w)
     // copy local copy back into cache
     if (input_integer != old_val) {
         data[cname_cache_addr] = input_integer;
-        notify_server_atomic(cname_cache_addr, old_val, input_integer);
+        notify_server(cname_cache_addr, nlohmann::json(old_val), nlohmann::json(input_integer));
     }
 }
 
@@ -651,7 +627,7 @@ void NDContext::render_combo(nlohmann::json& w)
     ImGui::Combo(label.c_str(), &combo_selection, cs_combo_list, combo_count, combo_count);
     if (combo_selection != old_val) {
         data[combo_index_cache_addr] = combo_selection;
-        notify_server_atomic(combo_index_cache_addr, old_val, combo_selection);
+        notify_server(combo_index_cache_addr, nlohmann::json(old_val), nlohmann::json(combo_selection));
     }
 }
 
@@ -724,7 +700,7 @@ void NDContext::render_date_picker(nlohmann::json& w)
             ymd_new_j.push_back(ymd_i[1]);
             ymd_new_j.push_back(ymd_i[2]);
             data[ckey] = ymd_new_j;
-            notify_server_array(ckey, ymd_old_j, ymd_new_j);
+            notify_server(ckey, ymd_old_j, ymd_new_j);
         }
     }
     catch (nlohmann::json::exception& ex) {
