@@ -235,7 +235,7 @@ protected:
                 std::cerr << "NDWebSockClient::on_timeout: python_responses not empty!" << std::endl;
             }
             ctx.get_server_responses(python_responses);
-            ctx.apply_server_changes(python_responses);
+            ctx.dispatch_server_responses(python_responses);
         }
     }
 
@@ -245,7 +245,7 @@ protected:
             << ") msg: " << payload << std::endl;
 
         nlohmann::json msg_json = nlohmann::json::parse(payload);
-        ctx.on_duck_event(c, h, msg_json);
+        ctx.on_duck_event(/*c, h, */ msg_json);
     }
 
 
