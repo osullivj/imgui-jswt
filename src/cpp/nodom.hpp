@@ -52,7 +52,7 @@ protected:
     bool init_python();
     bool fini_python();
     void python_thread();
-    void compose_server_changes(pybind11::list& server_changes_p, nlohmann::json& server_changes_j,
+    void marshall_server_responses(pybind11::list& server_changes_p, nlohmann::json& server_changes_j,
                                     const std::string& type_filter);
 
 
@@ -94,13 +94,13 @@ public:
     void notify_server_atomic(const std::string& caddr, int old_val, int new_val);
     void notify_server_array(const std::string& caddr, nlohmann::json& old_val, nlohmann::json& new_val);
     // void apply_server_changes(nlohmann::json& server_changes);
-    void apply_server_changes(std::queue<nlohmann::json>& server_changes);
+    void dispatch_server_responses(std::queue<nlohmann::json>& responses);
     void get_server_responses(std::queue<nlohmann::json>& responses);
 
     bool duck_app() { return server.duck_app(); }
     void set_done(bool d) { server.set_done(d); }
 
-    void on_duck_event(ws_client* ws, websocketpp::connection_hdl h, nlohmann::json& duck_msg);
+    void on_duck_event(/* ws_client* ws, websocketpp::connection_hdl h, */ nlohmann::json& duck_msg);
 
     void register_ws_callback(ws_sender send) { ws_send = send; }
 
