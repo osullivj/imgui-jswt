@@ -124,6 +124,10 @@ bool NDServer::init_python()
         is_duck_app = pybind11::bool_(service.attr(is_duck_app_cs));
 
         if (is_duck_app) {
+            // gotta do an explicit pyarrow import from cpp
+            // https://arrow.apache.org/docs/3.0/python/extending.html
+            // see the note on initializing the API
+            arrow::py::import_pyarrow();
             auto duck_module = pybind11::module_::import(duck_module_cs);
             pybind11::object duck_service = duck_module.attr(service_cs);
             duck_request_f = duck_service.attr("request");
