@@ -385,7 +385,7 @@ void NDContext::notify_server(const std::string& caddr, nlohmann::json& old_val,
 }
 
 
-void NDContext::on_duck_event(/* ws_client* ws, websocketpp::connection_hdl h, */ nlohmann::json& duck_msg)
+void NDContext::on_duck_event(nlohmann::json& duck_msg)
 {
     const static char* method = "NDContext::on_duck_event: ";
 
@@ -408,6 +408,7 @@ void NDContext::on_duck_event(/* ws_client* ws, websocketpp::connection_hdl h, *
         db_status_color = green;
     }
     else if (nd_type == "DuckInstance") {
+        // TODO: q processing order means this doesn't happen so early in cpp
         // main.ts:on_duck_event invokes check_duck_module.
         // However, we don't need all the check_duck_module JS module stuff,
         // so we can just flip status button color here

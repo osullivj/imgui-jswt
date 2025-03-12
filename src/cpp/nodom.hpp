@@ -94,7 +94,7 @@ public:
     bool duck_app() { return server.duck_app(); }
     void set_done(bool d) { server.set_done(d); }
 
-    void on_duck_event(/* ws_client* ws, websocketpp::connection_hdl h, */ nlohmann::json& duck_msg);
+    void on_duck_event(nlohmann::json& duck_msg);
 
     void register_ws_callback(ws_sender send) { ws_send = send; }
 
