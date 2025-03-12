@@ -602,8 +602,6 @@ class NDContext {
     // instantiation in index.html
     duck_module:any|null = null;
     pending_websock_msgs:any[] = [];
-    // DuckDB summary tables
-    duck_summary: Map<string, any> = new Map<string, any>();
         
     
     constructor() {
