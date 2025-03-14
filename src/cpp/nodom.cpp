@@ -33,6 +33,10 @@ static char* query_id_cs("query_id");
 static char* __nodom__cs("__nodom__");
 static char* sys_cs("sys");
 static char* sql_cs("sql");
+static char* cspec_cs("cspec");
+static char* cname_cs("cname");
+static char* title_cs("title");
+static char* table_flags_cs("table_flags");
 static char* path_cs("path");
 static char* service_cs("service");
 static char* breadboard_cs("breadboard");
@@ -191,14 +195,6 @@ void NDServer::get_server_responses(std::queue<nlohmann::json>& responses)
     boost::unique_lock<boost::mutex> from_lock(from_mutex);
     from_python.swap(responses);
     std::cout << method << responses.size() << " responses" << std::endl;
-}
-
-
-void json_atomic_array_to_python_list(nlohmann::json& atomic_array_j, pybind11::list& list_p)
-{
-    for (auto it : atomic_array_j) {
-        list_p.append(pyjson::from_json(it));
-    }
 }
 
 
@@ -393,7 +389,7 @@ void NDContext::on_duck_event(nlohmann::json& duck_msg)
         std::cerr << "NDContext::on_duck_event: no nd_type in " << duck_msg << std::endl;
     }
     std::cout << method << duck_msg << std::endl;
-    const std::string& nd_type(duck_msg["nd_type"]);
+    const std::string& nd_type(duck_msg[nd_type_cs]);
     if (nd_type == "ParquetScan") {
         db_status_color = amber;
     }
@@ -406,6 +402,12 @@ void NDContext::on_duck_event(nlohmann::json& duck_msg)
     }
     else if (nd_type == "QueryResult") {
         db_status_color = green;
+        const std::string& nd_type(duck_msg[nd_type_cs]);
+        const std::string& qid(duck_msg[query_id_cs]);
+        std::uint64_t arrow_ptr_val(duck_msg["result"]);
+        std::string cname(qid);
+        cname += "_result";
+        data[cname] = arrow_ptr_val;
     }
     else if (nd_type == "DuckInstance") {
         // TODO: q processing order means this doesn't happen so early in cpp
@@ -768,8 +770,42 @@ void NDContext::render_duck_parquet_loading_modal(nlohmann::json& w)
     }
 }
 
+
 void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
 {
+    const static char* method = "NDContext::render_duck_table_summary_modal: ";
+    static int default_summary_table_flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_RowBg;
+
+    if (!w.contains(cspec_cs) || !w[cspec_cs].contains(cname_cs) || !w[cspec_cs].contains(title_cs)) {
+        std::cerr << method << "bad cspec in: " << w << std::endl;
+        return;
+    }
+    const nlohmann::json& cspec(w[cspec_cs]);
+    const std::string& cname(cspec[cname_cs]);
+    const std::string& title(cspec[title_cs].empty() ? cname : cspec[title_cs]);
+
+    int table_flags = default_summary_table_flags;
+    if (cspec.contains(table_flags_cs)) {
+        table_flags = cspec[table_flags_cs];
+    }
+
+    ImGui::OpenPopup(title.c_str());
+    // Always center this window when appearing
+    ImGuiViewport* vp = ImGui::GetMainViewport();
+    if (!vp) {
+        std::cerr << method << cname << ": null viewport ptr!";
+    }
+    auto center = vp->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, { 0.5, 0.5 });
+
+    int column_count = 0;
+    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        // TODO: resolve cname to Arrow ptr
+    }
+
+
+
+ 
 }
 
 
