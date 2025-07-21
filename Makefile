@@ -50,8 +50,10 @@ FLAGS += -O0
 # imgui pre proc defns
 FLAGS += -D "IM_ASSERT(EXPR)=((void)(EXPR))"
 # see imgui.h:2558 on for Get/SetClipboardTextFn
+# needed this change for ems4.0.8 imgui 1.9.2 port
 # FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
+# needed this change for ems4.0.8 imgui 1.9.2 port
+# FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
 
 # embind/link flgas
 BIND_FLAGS += -s NO_FILESYSTEM=1
