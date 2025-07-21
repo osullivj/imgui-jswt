@@ -49,7 +49,8 @@ FLAGS += -O0
 # FLAGS += --source-map-base http://127.0.0.1:8080/
 # imgui pre proc defns
 FLAGS += -D "IM_ASSERT(EXPR)=((void)(EXPR))"
-FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+# see imgui.h:2558 on for Get/SetClipboardTextFn
+# FLAGS += -D IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 FLAGS += -D IMGUI_DISABLE_DEMO_WINDOWS
 
 # embind/link flgas
