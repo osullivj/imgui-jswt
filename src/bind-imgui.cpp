@@ -33,19 +33,19 @@ void ImGui::ShowFontSelector(const char*) {}
 
 #define CLASS_MEMBER_GET_RAW_POINTER(CLASS, MEMBER) \
     .property(#MEMBER, FUNCTION(emscripten::val, (const CLASS& that), { \
-        auto p = that.MEMBER; return p == NULL ? emscripten::val::null() : emscripten::val(p); \
+        auto p = that.MEMBER; return p == NULL ? emscripten::val::null() : emscripten::val(p, emscripten::allow_raw_pointers()); \
     }))
 
 #define CLASS_MEMBER_GET_SET_RAW_POINTER(CLASS, MEMBER) \
     .property(#MEMBER, FUNCTION(emscripten::val, (const CLASS& that), { \
-        auto p = that.MEMBER; return p == NULL ? emscripten::val::null() : emscripten::val(p); \
+        auto p = that.MEMBER; return p == NULL ? emscripten::val::null() : emscripten::val(p, emscripten::allow_raw_pointers()); \
     }), FUNCTION(void, (CLASS& that, emscripten::val value), { \
         that.MEMBER = value.isNull() ? NULL : value.as<decltype(that.MEMBER)>(emscripten::allow_raw_pointers()); \
     }))
 
 #define CLASS_MEMBER_GET_RAW_REFERENCE(CLASS, MEMBER) \
     .property(#MEMBER, FUNCTION(emscripten::val, (const CLASS& that), { \
-        auto p = &that.MEMBER; return emscripten::val(p); \
+        auto p = &that.MEMBER; return emscripten::val(p, emscripten::allow_raw_pointers()); \
     }))
 
 #define CLASS_METHOD(CLASS, METHOD) \
@@ -539,7 +539,7 @@ EMSCRIPTEN_BINDINGS(ImGuiTableSortSpecs) {
         // CLASS_MEMBER_GET_RAW_POINTER(ImGuiTableSortSpecs, Specs)
       .function("GetSpec", FUNCTION(emscripten::val, (ImGuiTableSortSpecs& that, const int idx), {
             const ImGuiTableColumnSortSpecs* spec = &that.Specs[idx];
-            return emscripten::val(spec);
+            return emscripten::val(spec, emscripten::allow_raw_pointers());
         }), emscripten::allow_raw_pointers())
         // int                         SpecsCount;     // Sort spec count. Most often 1. May be > 1 when ImGuiTableFlags_SortMulti is enabled. May be == 0 when ImGuiTableFlags_SortTristate is enabled.
         CLASS_MEMBER(ImGuiTableSortSpecs, SpecsCount)
@@ -554,7 +554,7 @@ EMSCRIPTEN_BINDINGS(ImDrawCmd) {
     emscripten::class_<ImDrawCmd>("ImDrawCmd")
         CLASS_MEMBER(ImDrawCmd, ElemCount)
         CLASS_MEMBER_GET_RAW_REFERENCE(ImDrawCmd, ClipRect)
-        CLASS_MEMBER_GET(ImDrawCmd, TextureId, { return emscripten::val((int) that.TextureId); })
+        CLASS_MEMBER_GET(ImDrawCmd, ImTextureId, { return emscripten::val((int) that.GetTexID()); })
         CLASS_MEMBER(ImDrawCmd, VtxOffset)
         CLASS_MEMBER(ImDrawCmd, IdxOffset)
     ;
@@ -565,7 +565,7 @@ EMSCRIPTEN_BINDINGS(ImDrawList) {
         .function("IterateDrawCmds", FUNCTION(void, (const ImDrawList* that, emscripten::val callback), {
             unsigned int ElemStart = 0;
             for (const ImDrawCmd* pcmd = that->CmdBuffer.begin(); pcmd != that->CmdBuffer.end(); pcmd++) {
-                callback(emscripten::val(pcmd), emscripten::val(ElemStart));
+                callback(emscripten::val(pcmd, emscripten::allow_raw_pointers()), emscripten::val(ElemStart));
                 ElemStart += pcmd->ElemCount;
             }
         }), emscripten::allow_raw_pointers())
@@ -813,7 +813,7 @@ EMSCRIPTEN_BINDINGS(ImDrawData) {
         .function("IterateDrawLists", FUNCTION(void, (const ImDrawData* that, emscripten::val callback), {
             for (int n = 0; n < that->CmdListsCount; n++) {
                 const ImDrawList* cmd_list = that->CmdLists[n];
-                callback(emscripten::val(cmd_list));
+                callback(emscripten::val(cmd_list, emscripten::allow_raw_pointers()));
             }
         }), emscripten::allow_raw_pointers())
 
@@ -891,7 +891,8 @@ EMSCRIPTEN_BINDINGS(ImFontConfig) {
         // bool            PixelSnapH;                 // false    // Align every glyph to pixel boundary. Useful e.g. if you are merging a non-pixel aligned font with the default font. If enabled, you can set OversampleH/V to 1.
         CLASS_MEMBER(ImFontConfig, PixelSnapH)
         // ImVec2          GlyphExtraSpacing;          // 0, 0     // Extra spacing (in pixels) between glyphs. Only X axis is supported for now.
-        CLASS_MEMBER_GET_RAW_REFERENCE(ImFontConfig, GlyphExtraSpacing)
+        // GlyphExtraSpacing removed from recent imgui
+        // CLASS_MEMBER_GET_RAW_REFERENCE(ImFontConfig, GlyphExtraSpacing)
         // ImVec2          GlyphOffset;                // 0, 0     // Offset all glyphs from this font input.
         CLASS_MEMBER_GET_RAW_REFERENCE(ImFontConfig, GlyphOffset)
         // const ImWchar*  GlyphRanges;                // NULL     // Pointer to a user-provided list of Unicode range (2 value per range, values are inclusive, zero-terminated list). THE ARRAY DATA NEEDS TO PERSIST AS LONG AS THE FONT IS ALIVE.
@@ -904,8 +905,8 @@ EMSCRIPTEN_BINDINGS(ImFontConfig) {
         CLASS_MEMBER(ImFontConfig, GlyphMaxAdvanceX)
         // bool            MergeMode;                  // false    // Merge into previous ImFont, so you can combine multiple inputs font into one ImFont (e.g. ASCII font + icons + Japanese glyphs). You may want to use GlyphOffset.y when merge font of different heights.
         CLASS_MEMBER(ImFontConfig, MergeMode)
-        // unsigned int    FontBuilderFlags;            // 0x00     // Settings for custom font rasterizer (e.g. ImGuiFreeType). Leave as zero if you aren't using one.
-        CLASS_MEMBER(ImFontConfig, FontBuilderFlags)
+        // unsigned int    FontLoaderFlags;            // 0x00     // Settings for custom font rasterizer (e.g. ImGuiFreeType). Leave as zero if you aren't using one.
+        CLASS_MEMBER(ImFontConfig, FontLoaderFlags)
         // float           RasterizerMultiply;         // 1.0f     // Brighten (>1.0f) or darken (<1.0f) font output. Brightening small fonts may be a good workaround to make them more readable.
         CLASS_MEMBER(ImFontConfig, RasterizerMultiply)
 
@@ -926,51 +927,54 @@ EMSCRIPTEN_BINDINGS(ImFont) {
     emscripten::class_<ImFont>("ImFont")
         // Members: Hot ~62/78 bytes
         // float                       FontSize;           // <user set>   // Height of characters, set during loading (don't change after loading)
-        CLASS_MEMBER(ImFont, FontSize)
+        // FontSize -> LegacySize in 1.92
+        CLASS_MEMBER(ImFont, LegacySize)
         // float                       Scale;              // = 1.f        // Base font scale, multiplied by the per-window font scale which you can adjust with SetFontScale()
         CLASS_MEMBER(ImFont, Scale)
         // ImVector<ImFontGlyph>       Glyphs;             //              // All glyphs.
         // CLASS_MEMBER(ImFont, Glyphs)
+        /** TODO rewrite for 1.92?
         .function("IterateGlyphs", FUNCTION(void, (ImFont* that, emscripten::val callback), {
             for (int n = 0; n < that->Glyphs.Size; n++) {
                 auto glyph = &that->Glyphs[n];
                 callback(emscripten::val(glyph));
             }
-        }), emscripten::allow_raw_pointers())
+        }), emscripten::allow_raw_pointers()) */
         // ImVector<float>             IndexAdvanceX;      //              // Sparse. Glyphs->AdvanceX in a directly indexable way (more cache-friendly, for CalcTextSize functions which are often bottleneck in large UI).
         // CLASS_MEMBER(ImFont, IndexAdvanceX)
         // ImVector<unsigned short>    IndexLookup;        //              // Sparse. Index glyphs by Unicode code-point.
         // CLASS_MEMBER(ImFont, IndexLookup)
         // const ImFontGlyph*          FallbackGlyph;      // == FindGlyph(FontFallbackChar)
         // CLASS_MEMBER(ImFont, FallbackGlyph)
-        CLASS_MEMBER_GET_SET_RAW_POINTER(ImFont, FallbackGlyph)
+        // CLASS_MEMBER_GET_SET_RAW_POINTER(ImFont, FallbackGlyph)
         // float                       FallbackAdvanceX;   // == FallbackGlyph->AdvanceX
-        CLASS_MEMBER(ImFont, FallbackAdvanceX)
+        // CLASS_MEMBER(ImFont, FallbackAdvanceX)
         // ImWchar                     FallbackChar;       // = '?'        // Replacement glyph if one isn't found. Only set via SetFallbackChar()
         CLASS_MEMBER(ImFont, FallbackChar)
         // ImWchar                     EllipsisChar;       // 2     // out // = -1       // Character used for ellipsis rendering.
         CLASS_MEMBER(ImFont, EllipsisChar)
         // ImWchar                     DotChar;
-        CLASS_MEMBER(ImFont, DotChar)
+        // CLASS_MEMBER(ImFont, DotChar)
 
         // Members: Cold ~18/26 bytes
         // short                       ConfigDataCount;    // ~ 1          // Number of ImFontConfig involved in creating this font. Bigger than 1 when merging multiple font sources into one ImFont.
-        CLASS_MEMBER(ImFont, ConfigDataCount)
+        // CLASS_MEMBER(ImFont, ConfigDataCount)
         // ImFontConfig*               ConfigData;         //              // Pointer within ContainerAtlas->ConfigData
         // CLASS_MEMBER(ImFont, ConfigData)
+        /** TODO rewrite for 1.92?
         .function("IterateConfigData", FUNCTION(void, (ImFont* that, emscripten::val callback), {
             for (int n = 0; n < that->ConfigDataCount; n++) {
                 auto cfg = &that->ConfigData[n];
                 callback(emscripten::val(cfg));
             }
-        }), emscripten::allow_raw_pointers())
+        }), emscripten::allow_raw_pointers()) */
         // ImFontAtlas*                ContainerAtlas;     //              // What we has been loaded into
         // CLASS_MEMBER(ImFont, ContainerAtlas)
         // float                       Ascent, Descent;    //              // Ascent: distance from top to bottom of e.g. 'A' [0..FontSize]
-        CLASS_MEMBER(ImFont, Ascent)
-        CLASS_MEMBER(ImFont, Descent)
+        // CLASS_MEMBER(ImFont, Ascent)
+        // CLASS_MEMBER(ImFont, Descent)
         // int                         MetricsTotalSurface;//              // Total surface in pixels to get an idea of the font rasterization/texture cost (not exact, we approximate the cost of padding between glyphs)
-        CLASS_MEMBER(ImFont, MetricsTotalSurface)
+        // CLASS_MEMBER(ImFont, MetricsTotalSurface)
 
         // Methods
         // IMGUI_API ImFont();
@@ -978,21 +982,21 @@ EMSCRIPTEN_BINDINGS(ImFont) {
         // IMGUI_API void              ClearOutputData();
         CLASS_METHOD(ImFont, ClearOutputData)
         // IMGUI_API void              BuildLookupTable();
-        CLASS_METHOD(ImFont, BuildLookupTable)
+        // CLASS_METHOD(ImFont, BuildLookupTable)
         // IMGUI_API const ImFontGlyph*FindGlyph(ImWchar c) const;
-        .function("FindGlyph", FUNCTION(emscripten::val, (const ImFont& that, ImWchar c), {
+        /** .function("FindGlyph", FUNCTION(emscripten::val, (const ImFont& that, ImWchar c), {
             const ImFontGlyph* glyph = that.FindGlyph(c);
             return glyph == NULL ? emscripten::val::null() : emscripten::val(glyph);
-        }), emscripten::allow_raw_pointers())
+        }), emscripten::allow_raw_pointers()) */
         // IMGUI_API const ImFontGlyph*FindGlyphNoFallback(ImWchar c) const;
-        .function("FindGlyphNoFallback", FUNCTION(emscripten::val, (const ImFont& that, ImWchar c), {
+        /** .function("FindGlyphNoFallback", FUNCTION(emscripten::val, (const ImFont& that, ImWchar c), {
             const ImFontGlyph* glyph = that.FindGlyphNoFallback(c);
             return glyph == NULL ? emscripten::val::null() : emscripten::val(glyph);
-        }), emscripten::allow_raw_pointers())
+        }), emscripten::allow_raw_pointers()) */
         // IMGUI_API void              SetFallbackChar(ImWchar c);
         // CLASS_METHOD(ImFont, SetFallbackChar)
         // float                       GetCharAdvance(ImWchar c) const     { return ((int)c < IndexAdvanceX.Size) ? IndexAdvanceX[(int)c] : FallbackAdvanceX; }
-        CLASS_METHOD(ImFont, GetCharAdvance)
+        // CLASS_METHOD(ImFont, GetCharAdvance)
         // bool                        IsLoaded() const                    { return ContainerAtlas != NULL; }
         CLASS_METHOD(ImFont, IsLoaded)
         // const char*                 GetDebugName() const                { return ConfigData ? ConfigData->Name : "<unknown>"; }
@@ -1001,7 +1005,7 @@ EMSCRIPTEN_BINDINGS(ImFont) {
         // 'max_width' stops rendering after a certain width (could be turned into a 2d size). FLT_MAX to disable.
         // 'wrap_width' enable automatic word-wrapping across multiple lines to fit into given width. 0.0f to disable.
         // IMGUI_API ImVec2            CalcTextSizeA(float size, float max_width, float wrap_width, const char* text_begin, const char* text_end = NULL, const char** remaining = NULL) const; // utf8
-        .function("CalcTextSizeA", FUNCTION(emscripten::val, (const ImFont& that, float size, float max_width, float wrap_width, std::string text_begin, emscripten::val remaining, emscripten::val out), {
+        /** .function("CalcTextSizeA", FUNCTION(emscripten::val, (const ImFont& that, float size, float max_width, float wrap_width, std::string text_begin, emscripten::val remaining, emscripten::val out), {
             const char* _text_begin = text_begin.c_str();
             const char* _remaining = NULL;
             const ImVec2 text_size = that.CalcTextSizeA(size, max_width, wrap_width, _text_begin, NULL, &_remaining);
@@ -1009,17 +1013,17 @@ EMSCRIPTEN_BINDINGS(ImFont) {
                 remaining.set(0, (int)(_remaining - _text_begin));
             }
             return export_ImVec2(text_size, out);
-        }))
+        })) */
         // IMGUI_API const char*       CalcWordWrapPositionA(float scale, const char* text, const char* text_end, float wrap_width) const;
-        .function("CalcWordWrapPositionA", FUNCTION(int, (const ImFont& that, float scale, std::string text, float wrap_width), {
+        /** .function("CalcWordWrapPositionA", FUNCTION(int, (const ImFont& that, float scale, std::string text, float wrap_width), {
             const char* _text = text.c_str();
             const char* pos = that.CalcWordWrapPositionA(scale, _text, NULL, wrap_width);
             return (int)(pos - _text);
-        }))
+        })) */
         // IMGUI_API void              RenderChar(ImDrawList* draw_list, float size, ImVec2 pos, ImU32 col, unsigned short c) const;
-        .function("RenderChar", FUNCTION(void, (const ImFont& that, emscripten::val draw_list, float size, emscripten::val pos, ImU32 col, unsigned short c), {
+        /** .function("RenderChar", FUNCTION(void, (const ImFont& that, emscripten::val draw_list, float size, emscripten::val pos, ImU32 col, unsigned short c), {
             that.RenderChar(draw_list.as<ImDrawList*>(emscripten::allow_raw_pointers()), size, import_ImVec2(pos), col, c);
-        }))
+        })) */
         // IMGUI_API void              RenderText(ImDrawList* draw_list, float size, ImVec2 pos, ImU32 col, const ImVec4& clip_rect, const char* text_begin, const char* text_end, float wrap_width = 0.0f, bool cpu_fine_clip = false) const;
 
         // [Internal]
@@ -1061,7 +1065,7 @@ ImFontConfig import_ImFontConfig(emscripten::val value) {
     // bool            PixelSnapH;                 // false    // Align every glyph to pixel boundary. Useful e.g. if you are merging a non-pixel aligned font with the default font. If enabled, you can set OversampleH/V to 1.
     font_cfg.PixelSnapH = value["PixelSnapH"].as<bool>();
     // ImVec2          GlyphExtraSpacing;          // 0, 0     // Extra spacing (in pixels) between glyphs. Only X axis is supported for now.
-    font_cfg.GlyphExtraSpacing = import_ImVec2(value["GlyphExtraSpacing"]);
+    // font_cfg.GlyphExtraSpacing = import_ImVec2(value["GlyphExtraSpacing"]);
     // ImVec2          GlyphOffset;                // 0, 0     // Offset all glyphs from this font input.
     font_cfg.GlyphOffset = import_ImVec2(value["GlyphOffset"]);
     // const ImWchar*  GlyphRanges;                // NULL     // Pointer to a user-provided list of Unicode range (2 value per range, values are inclusive, zero-terminated list). THE ARRAY DATA NEEDS TO PERSIST AS LONG AS THE FONT IS ALIVE.
@@ -1074,7 +1078,7 @@ ImFontConfig import_ImFontConfig(emscripten::val value) {
     // bool            MergeMode;                  // false    // Merge into previous ImFont, so you can combine multiple inputs font into one ImFont (e.g. ASCII font + icons + Japanese glyphs). You may want to use GlyphOffset.y when merge font of different heights.
     font_cfg.MergeMode = value["MergeMode"].as<bool>();
     // unsigned int    FontBuilderFlags;            // 0x00     // Settings for custom font rasterizer (e.g. ImGuiFreeType). Leave as zero if you aren't using one.
-    font_cfg.FontBuilderFlags = value["FontBuilderFlags"].as<unsigned int>();
+    // font_cfg.FontBuilderFlags = value["FontBuilderFlags"].as<unsigned int>();
     // float           RasterizerMultiply;         // 1.0f     // Brighten (>1.0f) or darken (<1.0f) font output. Brightening small fonts may be a good workaround to make them more readable.
     font_cfg.RasterizerMultiply = import_value<float>(value["RasterizerMultiply"]);
 
@@ -1094,7 +1098,7 @@ EMSCRIPTEN_BINDINGS(ImFontAtlas) {
         .function("AddFontDefault", FUNCTION(emscripten::val, (ImFontAtlas& that, emscripten::val font_cfg), {
             ImFontConfig _font_cfg = font_cfg.isNull() ? ImFontConfig() : import_ImFontConfig(font_cfg);
             ImFont* font = that.AddFontDefault(font_cfg.isNull() ? NULL : &_font_cfg);
-            return emscripten::val(font);
+            return emscripten::val(font, emscripten::allow_raw_pointers());
         }), emscripten::allow_raw_pointers())
         // IMGUI_API ImFont*           AddFontFromFileTTF(const char* filename, float size_pixels, const ImFontConfig* font_cfg = NULL, const ImWchar* glyph_ranges = NULL);
         // IMGUI_API ImFont*           AddFontFromMemoryTTF(void* font_data, int font_size, float size_pixels, const ImFontConfig* font_cfg = NULL, const ImWchar* glyph_ranges = NULL); // Note: Transfer ownership of 'ttf_data' to ImFontAtlas! Will be deleted after Build(). Set font_cfg->FontDataOwnedByAtlas to false to keep ownership.
@@ -1108,8 +1112,8 @@ EMSCRIPTEN_BINDINGS(ImFontAtlas) {
             ImFontConfig _font_cfg = font_cfg.isNull() ? ImFontConfig() : import_ImFontConfig(font_cfg);
             ImWchar* _glyph_ranges = glyph_ranges.isNull() ? NULL : (ImWchar*) glyph_ranges.as<intptr_t>();
             ImFont* font = that.AddFontFromMemoryTTF(_data_copy, _data_size, size_pixels, font_cfg.isNull() ? NULL : &_font_cfg, _glyph_ranges);
-            return emscripten::val(font);
-        }), emscripten::allow_raw_pointers())
+            return emscripten::val(font, emscripten::allow_raw_pointers());
+        }))
         // IMGUI_API ImFont*           AddFontFromMemoryCompressedTTF(const void* compressed_font_data, int compressed_font_size, float size_pixels, const ImFontConfig* font_cfg = NULL, const ImWchar* glyph_ranges = NULL); // 'compressed_font_data' still owned by caller. Compress with binary_to_compressed_c.cpp.
         // IMGUI_API ImFont*           AddFontFromMemoryCompressedBase85TTF(const char* compressed_font_data_base85, float size_pixels, const ImFontConfig* font_cfg = NULL, const ImWchar* glyph_ranges = NULL);              // 'compressed_font_data_base85' still owned by caller. Compress with binary_to_compressed_c.cpp with -base85 parameter.
         // IMGUI_API void              ClearTexData();             // Clear the CPU-side texture data. Saves RAM once the texture has been copied to graphics memory.
@@ -1243,12 +1247,12 @@ EMSCRIPTEN_BINDINGS(ImFontAtlas) {
         // ImFontAtlasFlags            Flags;              // Build flags (see ImFontAtlasFlags_)
         CLASS_MEMBER(ImFontAtlas, Flags)
         // ImTextureID                 TexID;              // User data to refer to the texture once it has been uploaded to user's graphic systems. It is passed back to you during rendering via the ImDrawCmd structure.
-        CLASS_MEMBER_GET_SET(ImFontAtlas, TexID, 
+        /** CLASS_MEMBER_GET_SET(ImFontAtlas, TexID, 
             { return emscripten::val((int) that.TexID); }, 
             { that.TexID = (ImTextureID) value.as<int>(); }
-        )
+        ) */
         // int                         TexDesiredWidth;    // Texture width desired by user before Build(). Must be a power-of-two. If have many glyphs your graphics API have texture size restrictions you may want to increase texture width to decrease height.
-        CLASS_MEMBER(ImFontAtlas, TexDesiredWidth)
+        // CLASS_MEMBER(ImFontAtlas, TexDesiredWidth)
         // int                         TexGlyphPadding;    // Padding between glyphs within texture in pixels. Defaults to 1.
         CLASS_MEMBER(ImFontAtlas, TexGlyphPadding)
 
@@ -1257,9 +1261,9 @@ EMSCRIPTEN_BINDINGS(ImFontAtlas) {
         // unsigned char*              TexPixelsAlpha8;    // 1 component per pixel, each component is unsigned 8-bit. Total size = TexWidth * TexHeight
         // unsigned int*               TexPixelsRGBA32;    // 4 component per pixel, each component is unsigned 8-bit. Total size = TexWidth * TexHeight * 4
         // int                         TexWidth;           // Texture width calculated during Build().
-        CLASS_MEMBER(ImFontAtlas, TexWidth)
+        // CLASS_MEMBER(ImFontAtlas, TexWidth)
         // int                         TexHeight;          // Texture height calculated during Build().
-        CLASS_MEMBER(ImFontAtlas, TexHeight)
+        // CLASS_MEMBER(ImFontAtlas, TexHeight)
         // ImVec2                      TexUvScale;         // = (1.0f/TexWidth, 1.0f/TexHeight)
         CLASS_MEMBER_GET_RAW_REFERENCE(ImFontAtlas, TexUvScale)
         // ImVec2                      TexUvWhitePixel;    // Texture coordinates to a white pixel
@@ -1268,7 +1272,7 @@ EMSCRIPTEN_BINDINGS(ImFontAtlas) {
         .function("IterateFonts", FUNCTION(void, (ImFontAtlas* that, emscripten::val callback), {
             for (int n = 0; n < that->Fonts.Size; n++) {
                 ImFont* font = that->Fonts.Data[n];
-                callback(emscripten::val(font));
+                callback(emscripten::val(font, emscripten::allow_raw_pointers()));
             }
         }), emscripten::allow_raw_pointers())
         // ImVector<CustomRect>        CustomRects;        // Rectangles for packing custom texture data into the atlas.
@@ -1341,12 +1345,12 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // float         MouseDragThreshold;       // = 6.0f               // Distance threshold before considering we are dragging
         CLASS_MEMBER(ImGuiIO, MouseDragThreshold)
         // int           KeyMap[ImGuiKey_COUNT];   // <unset>              // Map of indices into the KeysDown[512] entries array
-        .function("_getAt_KeyMap", FUNCTION(int, (const ImGuiIO& that, ImGuiKey index), {
+        /** .function("_getAt_KeyMap", FUNCTION(int, (const ImGuiIO& that, ImGuiKey index), {
             return (0 <= index && index < ImGuiKey_COUNT) ? that.KeyMap[index] : -1;
         }))
         .function("_setAt_KeyMap", FUNCTION(bool, (ImGuiIO& that, ImGuiKey index, int value), {
             if (0 <= index && index < ImGuiKey_COUNT) { that.KeyMap[index] = value; return true; } return false;
-        }))
+        })) */
         // float         KeyRepeatDelay;           // = 0.250f             // When holding a key/button, time before it starts repeating, in seconds (for buttons in Repeat mode, etc.).
         CLASS_MEMBER(ImGuiIO, KeyRepeatDelay)
         // float         KeyRepeatRate;            // = 0.050f             // When holding a key/button, rate at which it repeats, in seconds.
@@ -1460,7 +1464,7 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // bool        KeySuper;                   // Keyboard modifier pressed: Cmd/Super/Windows
         CLASS_MEMBER(ImGuiIO, KeySuper)
         // bool        KeysDown[512];              // Keyboard keys that are pressed (in whatever storage order you naturally have access to keyboard data)
-        .function("_getAt_KeysDown", FUNCTION(bool, (const ImGuiIO& that, int index), {
+        /** .function("_getAt_KeysDown", FUNCTION(bool, (const ImGuiIO& that, int index), {
             return (0 <= index && index < IM_ARRAYSIZE(that.KeysDown)) ? that.KeysDown[index] : false;
         }), emscripten::allow_raw_pointers())
         .function("_setAt_KeysDown", FUNCTION(bool, (ImGuiIO& that, int index, bool value), {
@@ -1472,7 +1476,7 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         }), emscripten::allow_raw_pointers())
         .function("_setAt_NavInputs", FUNCTION(bool, (ImGuiIO& that, ImGuiNavInput index, float value), {
             if (0 <= index && index < ImGuiNavInput_COUNT) { that.NavInputs[index] = value; return true; } return false;
-        }), emscripten::allow_raw_pointers())
+        }), emscripten::allow_raw_pointers()) */
 
         // Functions
         // IMGUI_API void AddInputCharacter(ImWchar c);                        // Add new character into InputCharacters[]
@@ -1518,7 +1522,7 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // int         MetricsActiveWindows;       // Number of visible root windows (exclude child windows)
         CLASS_MEMBER(ImGuiIO, MetricsActiveWindows)
         // int         MetricsActiveAllocations;   // Number of active allocations, updated by MemAlloc/MemFree based on current context. May be off if you have multiple imgui contexts.
-        CLASS_MEMBER(ImGuiIO, MetricsActiveAllocations)
+        // CLASS_MEMBER(ImGuiIO, MetricsActiveAllocations)
         // ImVec2      MouseDelta;                 // Mouse delta. Note that this is zero if either current or previous position are invalid (-FLT_MAX,-FLT_MAX), so a disappearing/reappearing mouse won't have a huge delta.
         CLASS_MEMBER_GET_RAW_REFERENCE(ImGuiIO, MouseDelta)
 
@@ -1531,7 +1535,7 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // ImVec2      MouseClickedPos[5];         // Position at time of clicking
         .function("_getAt_MouseClickedPos", FUNCTION(emscripten::val, (const ImGuiIO* that, int index), {
             if (0 <= index && index < IM_ARRAYSIZE(that->MouseClickedPos)) {
-                const auto p = &that->MouseClickedPos[index]; return emscripten::val(p);
+                const auto p = &that->MouseClickedPos[index]; return emscripten::val(p, emscripten::allow_raw_pointers());
             }
             return emscripten::val::undefined();
         }), emscripten::allow_raw_pointers())
@@ -1548,14 +1552,14 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // ImVec2      MouseDragMaxDistanceAbs[5]; // Maximum distance, absolute, on each axis, of how much mouse has traveled from the clicking point
         // float       MouseDragMaxDistanceSqr[5]; // Squared maximum distance of how much mouse has traveled from the clicking point
         // float       KeysDownDuration[512];      // Duration the keyboard key has been down (0.0f == just pressed)
-        .function("_getAt_KeysDownDuration", FUNCTION(float, (const ImGuiIO& that, int index), {
+        /** .function("_getAt_KeysDownDuration", FUNCTION(float, (const ImGuiIO& that, int index), {
             return (0 <= index && index < IM_ARRAYSIZE(that.KeysDownDuration)) ? that.KeysDownDuration[index] : -1.0f;
         }))
         // float       KeysDownDurationPrev[512];  // Previous duration the key has been down
         // float       NavInputsDownDuration[ImGuiNavInput_COUNT];
         .function("_getAt_NavInputsDownDuration", FUNCTION(float, (const ImGuiIO& that, ImGuiNavInput index), {
             return (0 <= index && index < ImGuiNavInput_COUNT) ? that.NavInputsDownDuration[index] : -1.0f;
-        }))
+        })) */
         // float       NavInputsDownDurationPrev[ImGuiNavInput_COUNT];
 
         // IMGUI_API   ImGuiIO();
@@ -1633,7 +1637,7 @@ EMSCRIPTEN_BINDINGS(ImGuiStyle) {
         CLASS_MEMBER(ImGuiStyle, LogSliderDeadzone)
         CLASS_MEMBER(ImGuiStyle, TabRounding)
         CLASS_MEMBER(ImGuiStyle, TabBorderSize)
-        CLASS_MEMBER(ImGuiStyle, TabMinWidthForCloseButton)
+        // CLASS_MEMBER(ImGuiStyle, TabMinWidthForCloseButton)
         CLASS_MEMBER(ImGuiStyle, ColorButtonPosition)
         CLASS_MEMBER_GET_RAW_REFERENCE(ImGuiStyle, ButtonTextAlign)
         CLASS_MEMBER_GET_RAW_REFERENCE(ImGuiStyle, SelectableTextAlign)
@@ -1647,7 +1651,7 @@ EMSCRIPTEN_BINDINGS(ImGuiStyle) {
         CLASS_MEMBER(ImGuiStyle, CircleTessellationMaxError)
         .function("_getAt_Colors", FUNCTION(emscripten::val, (ImGuiStyle* that, ImGuiCol index), {
             if (0 <= index && index < ImGuiCol_COUNT) {
-                auto p = &that->Colors[index]; return emscripten::val(p);
+                auto p = &that->Colors[index]; return emscripten::val(p, emscripten::allow_raw_pointers());
             }
             return emscripten::val::undefined();
         }), emscripten::allow_raw_pointers())
@@ -1726,12 +1730,12 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     // IMGUI_API void          EndFrame();                                 // ends the Dear ImGui frame. automatically called by Render(). If you don't need to render data (skipping rendering) you may call EndFrame() without Render()... but you'll have wasted CPU already! If you don't need to render, better to not create any windows and not call NewFrame() at all!
     // IMGUI_API void          Render();                                   // ends the Dear ImGui frame, finalize the draw data. You can then get call GetDrawData().
     // IMGUI_API ImDrawData*   GetDrawData();                              // valid after Render() and until the next call to NewFrame(). this is what you have to render.
-    emscripten::function("GetIO", FUNCTION(emscripten::val, (), { ImGuiIO* p = &ImGui::GetIO(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
-    emscripten::function("GetStyle", FUNCTION(emscripten::val, (), { ImGuiStyle* p = &ImGui::GetStyle(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetIO", FUNCTION(emscripten::val, (), { ImGuiIO* p = &ImGui::GetIO(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetStyle", FUNCTION(emscripten::val, (), { ImGuiStyle* p = &ImGui::GetStyle(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     emscripten::function("NewFrame", &ImGui::NewFrame);
     emscripten::function("EndFrame", &ImGui::EndFrame);
     emscripten::function("Render", &ImGui::Render);
-    emscripten::function("GetDrawData", FUNCTION(emscripten::val, (), { ImDrawData* p = ImGui::GetDrawData(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetDrawData", FUNCTION(emscripten::val, (), { ImDrawData* p = ImGui::GetDrawData(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
 
     // Demo, Debug, Information
     // IMGUI_API void          ShowDemoWindow(bool* p_open = NULL);        // create Demo window. demonstrate most ImGui features. call this to learn about the library! try to make it always available in your application!
@@ -1813,7 +1817,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("IsWindowCollapsed", &ImGui::IsWindowCollapsed);
     emscripten::function("IsWindowFocused", &ImGui::IsWindowFocused);
     emscripten::function("IsWindowHovered", &ImGui::IsWindowHovered);
-    emscripten::function("GetWindowDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetWindowDrawList(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetWindowDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetWindowDrawList(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     emscripten::function("GetWindowPos", FUNCTION(emscripten::val, (emscripten::val out), { return export_ImVec2(ImGui::GetWindowPos(), out); }));
     emscripten::function("GetWindowSize", FUNCTION(emscripten::val, (emscripten::val out), { return export_ImVec2(ImGui::GetWindowSize(), out); }));
     emscripten::function("GetWindowWidth", &ImGui::GetWindowWidth);
@@ -1842,7 +1846,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
         if (!custom_callback.isNull()) {
             WrapImGuiContext::GetCurrentContext()->_ImGui_SetNextWindowSizeConstraints_custom_callback = custom_callback;
             ImGui::SetNextWindowSizeConstraints(import_ImVec2(size_min), import_ImVec2(size_max), FUNCTION(void, (ImGuiSizeCallbackData* data), {
-                WrapImGuiContext::GetCurrentContext()->_ImGui_SetNextWindowSizeConstraints_custom_callback(emscripten::val(data));
+                WrapImGuiContext::GetCurrentContext()->_ImGui_SetNextWindowSizeConstraints_custom_callback(emscripten::val(data, emscripten::allow_raw_pointers()));
             }), NULL);
         } else {
             ImGui::SetNextWindowSizeConstraints(import_ImVec2(size_min), import_ImVec2(size_max));
@@ -1929,8 +1933,8 @@ EMSCRIPTEN_BINDINGS(ImGui) {
         }
     }));
     emscripten::function("PopStyleVar", &ImGui::PopStyleVar);
-    emscripten::function("PushAllowKeyboardFocus", &ImGui::PushAllowKeyboardFocus);
-    emscripten::function("PopAllowKeyboardFocus", &ImGui::PopAllowKeyboardFocus);
+    // emscripten::function("PushAllowKeyboardFocus", &ImGui::PushAllowKeyboardFocus);
+    // emscripten::function("PopAllowKeyboardFocus", &ImGui::PopAllowKeyboardFocus);
     emscripten::function("PushButtonRepeat", &ImGui::PushButtonRepeat);
     emscripten::function("PopButtonRepeat", &ImGui::PopButtonRepeat);
 
@@ -1956,13 +1960,13 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     // IMGUI_API ImU32         GetColorU32(const ImVec4& col);                                 // retrieve given color with style alpha applied, packed as a 32-bit value suitable for ImDrawList
     // IMGUI_API ImU32         GetColorU32(ImU32 col);                                         // retrieve given color with style alpha applied, packed as a 32-bit value suitable for ImDrawList
     // IMGUI_API const ImVec4& GetStyleColorVec4(ImGuiCol idx);                                // retrieve style color as stored in ImGuiStyle structure. use to feed back into PushStyleColor(), otherwise use GetColorU32() to get style color with style alpha baked in.
-    emscripten::function("GetFont", FUNCTION(emscripten::val, (), { ImFont* p = ImGui::GetFont(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetFont", FUNCTION(emscripten::val, (), { ImFont* p = ImGui::GetFont(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     emscripten::function("GetFontSize", &ImGui::GetFontSize);
     emscripten::function("GetFontTexUvWhitePixel", FUNCTION(emscripten::val, (emscripten::val out), { return export_ImVec2(ImGui::GetFontTexUvWhitePixel(), out); }));
     emscripten::function("GetColorU32_A", FUNCTION(ImU32, (ImGuiCol idx, emscripten::val alpha_mul), { return ImGui::GetColorU32(idx, import_value<float>(alpha_mul)); }));
     emscripten::function("GetColorU32_B", FUNCTION(ImU32, (emscripten::val col), { return ImGui::GetColorU32(import_ImVec4(col)); }));
     emscripten::function("GetColorU32_C", FUNCTION(ImU32, (ImU32 col), { return ImGui::GetColorU32(col); }));
-    emscripten::function("GetStyleColorVec4", FUNCTION(emscripten::val, (ImGuiCol idx), { const ImVec4* p = &ImGui::GetStyleColorVec4(idx); return emscripten::val(p); }));
+    emscripten::function("GetStyleColorVec4", FUNCTION(emscripten::val, (ImGuiCol idx), { const ImVec4* p = &ImGui::GetStyleColorVec4(idx); return emscripten::val(p, emscripten::allow_raw_pointers()); }));
 
     // Cursor / Layout
     // - By "cursor" we mean the current output position.
@@ -2090,13 +2094,14 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("Button", FUNCTION(bool, (std::string label, emscripten::val size), { return ImGui::Button(label.c_str(), import_ImVec2(size)); }));
     emscripten::function("SmallButton", FUNCTION(bool, (std::string label), { return ImGui::SmallButton(label.c_str()); }));
     emscripten::function("InvisibleButton", FUNCTION(bool, (std::string str_id, emscripten::val size, ImGuiButtonFlags flags), { return ImGui::InvisibleButton(str_id.c_str(), import_ImVec2(size), flags); }));
-    emscripten::function("ArrowButton", FUNCTION(bool, (std::string label, int dir), { return ImGui::ArrowButton(label.c_str(), dir); }));
+    emscripten::function("ArrowButton", FUNCTION(bool, (std::string label, int dir), { return ImGui::ArrowButton(label.c_str(), (ImGuiDir)dir); }));
     emscripten::function("Image", FUNCTION(void, (emscripten::val user_texture_id, emscripten::val size, emscripten::val uv0, emscripten::val uv1, emscripten::val tint_col, emscripten::val border_col), {
         ImGui::Image((ImTextureID) user_texture_id.as<int>(), import_ImVec2(size), import_ImVec2(uv0), import_ImVec2(uv1), import_ImVec4(tint_col), import_ImVec4(border_col));
     }));
+    /** TODO fix when ImageButton needed
     emscripten::function("ImageButton", FUNCTION(bool, (emscripten::val user_texture_id, emscripten::val size, emscripten::val uv0, emscripten::val uv1, int frame_padding, emscripten::val bg_col, emscripten::val tint_col), {
         return ImGui::ImageButton((ImTextureID) user_texture_id.as<int>(), import_ImVec2(size), import_ImVec2(uv0), import_ImVec2(uv1), frame_padding, import_ImVec4(bg_col), import_ImVec4(tint_col));
-    }));
+    })); */
     emscripten::function("Checkbox", FUNCTION(bool, (std::string label, emscripten::val v), { return ImGui::Checkbox(label.c_str(), access_value<bool>(v)); }));
     emscripten::function("CheckboxFlags", FUNCTION(bool, (std::string label, emscripten::val flags, unsigned int flags_value), {
         return ImGui::CheckboxFlags(label.c_str(), access_value<unsigned int>(flags), flags_value);
@@ -2344,7 +2349,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
         if (!callback.isNull()) {
             WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback = callback;
             ret = ImGui::InputText(label.c_str(), (char*) _buf.data(), buf_size, flags, FUNCTION(int, (ImGuiInputTextCallbackData* data), {
-                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback(emscripten::val(data)).as<int>();
+                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback(emscripten::val(data, emscripten::allow_raw_pointers())).as<int>();
             }), NULL);
         } else {
             ret = ImGui::InputText(label.c_str(), (char*) _buf.data(), buf_size, flags);
@@ -2360,7 +2365,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
         if (!callback.isNull()) {
             WrapImGuiContext::GetCurrentContext()->_ImGui_InputTextMultiline_callback = callback;
             ret = ImGui::InputTextMultiline(label.c_str(), (char*) _buf.data(), buf_size, import_ImVec2(size), flags, FUNCTION(int, (ImGuiInputTextCallbackData* data), {
-                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputTextMultiline_callback(emscripten::val(data)).as<int>();
+                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputTextMultiline_callback(emscripten::val(data, emscripten::allow_raw_pointers())).as<int>();
             }), NULL);
         } else {
             ret = ImGui::InputTextMultiline(label.c_str(), (char*) _buf.data(), buf_size, import_ImVec2(size), flags);
@@ -2376,7 +2381,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
         if (!callback.isNull()) {
             WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback = callback;
             ret = ImGui::InputTextWithHint(label.c_str(), hint.c_str(), (char*) _buf.data(), buf_size, flags, FUNCTION(int, (ImGuiInputTextCallbackData* data), {
-                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback(emscripten::val(data)).as<int>();
+                return WrapImGuiContext::GetCurrentContext()->_ImGui_InputText_callback(emscripten::val(data, emscripten::allow_raw_pointers())).as<int>();
             }), NULL);
         } else {
             ret = ImGui::InputTextWithHint(label.c_str(), hint.c_str(), (char*) _buf.data(), buf_size, flags);
@@ -2716,7 +2721,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     //   wastefully sort your data every frame!
     // - Lifetime: don't hold on this pointer over multiple frames or past any subsequent call to BeginTable().
     // IMGUI_API ImGuiTableSortSpecs* TableGetSortSpecs();                        // get latest sort specs for the table (NULL if not sorting).
-    emscripten::function("TableGetSortSpecs", FUNCTION(emscripten::val, (), { ImGuiTableSortSpecs* p = ImGui::TableGetSortSpecs(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("TableGetSortSpecs", FUNCTION(emscripten::val, (), { ImGuiTableSortSpecs* p = ImGui::TableGetSortSpecs(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     // Tables: Miscellaneous functions
     // - Functions args 'int column_n' treat the default value of -1 as the same as passing the current column index.
     // IMGUI_API int                   TableGetColumnCount();                      // return number of columns (value passed to BeginTable)
@@ -2867,7 +2872,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     // - In 'docking' branch with multi-viewport enabled, we extend this concept to have multiple active viewports.
     // - In the future we will extend this concept further to also represent Platform Monitor and support a "no main platform window" operation mode.
     // IMGUI_API ImGuiViewport* GetMainViewport();                                                 // return primary/default viewport. This can never be NULL.
-    emscripten::function("GetMainViewport", FUNCTION(emscripten::val, (), { ImGuiViewport* p = ImGui::GetMainViewport(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetMainViewport", FUNCTION(emscripten::val, (), { ImGuiViewport* p = ImGui::GetMainViewport(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
 
     // Miscellaneous Utilities
     // IMGUI_API bool          IsRectVisible(const ImVec2& size);                                  // test if rectangle (of given size, starting from cursor position) is visible / not clipped.
@@ -2887,9 +2892,9 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("IsRectVisible_B", FUNCTION(bool, (emscripten::val rect_min, emscripten::val rect_max), { return ImGui::IsRectVisible(import_ImVec2(rect_min), import_ImVec2(rect_max)); }));
     emscripten::function("GetTime", &ImGui::GetTime);
     emscripten::function("GetFrameCount", &ImGui::GetFrameCount);
-    emscripten::function("GetBackgroundDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetBackgroundDrawList(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
-    emscripten::function("GetForegroundDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetForegroundDrawList(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
-    emscripten::function("GetDrawListSharedData", FUNCTION(emscripten::val, (), { ImDrawListSharedData* p = ImGui::GetDrawListSharedData(); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetBackgroundDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetBackgroundDrawList(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetForegroundDrawList", FUNCTION(emscripten::val, (), { ImDrawList* p = ImGui::GetForegroundDrawList(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
+    emscripten::function("GetDrawListSharedData", FUNCTION(emscripten::val, (), { ImDrawListSharedData* p = ImGui::GetDrawListSharedData(); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     emscripten::function("GetStyleColorName", FUNCTION(std::string, (ImGuiCol idx), { return std::string(ImGui::GetStyleColorName(idx)); }));
     emscripten::function("SetStateStorage", FUNCTION(void, (emscripten::val tree), { TODO(); }));
     emscripten::function("GetStateStorage", FUNCTION(emscripten::val, (), { TODO(); return emscripten::val::null(); }));
@@ -2926,12 +2931,12 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     // IMGUI_API bool          IsKeyReleased(int user_key_index);                                  // was key released (went from Down to !Down)?
     // IMGUI_API int           GetKeyPressedAmount(int key_index, float repeat_delay, float rate); // uses provided repeat rate/delay. return a count, most often 0 or 1 but might be >1 if RepeatRate is small enough that DeltaTime > RepeatRate
     // IMGUI_API void          CaptureKeyboardFromApp(bool want_capture_keyboard_value = true);    // attention: misleading name! manually override io.WantCaptureKeyboard flag next frame (said flag is entirely left for your application to handle). e.g. force capture keyboard when your widget is being hovered. This is equivalent to setting "io.WantCaptureKeyboard = want_capture_keyboard_value"; after the next NewFrame() call.
-    emscripten::function("GetKeyIndex", &ImGui::GetKeyIndex);
+    // emscripten::function("GetKeyIndex", &ImGui::GetKeyIndex);
     emscripten::function("IsKeyDown", &ImGui::IsKeyDown);
     emscripten::function("IsKeyPressed", &ImGui::IsKeyPressed);
     emscripten::function("IsKeyReleased", &ImGui::IsKeyReleased);
     emscripten::function("GetKeyPressedAmount", &ImGui::GetKeyPressedAmount);
-    emscripten::function("CaptureKeyboardFromApp", &ImGui::CaptureKeyboardFromApp);
+    // emscripten::function("CaptureKeyboardFromApp", &ImGui::CaptureKeyboardFromApp);
 
     // Inputs Utilities: Mouse
     // - To refer to a mouse button, you may use named enums in your code e.g. ImGuiMouseButton_Left, ImGuiMouseButton_Right.
@@ -2968,7 +2973,7 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("ResetMouseDragDelta", &ImGui::ResetMouseDragDelta);
     emscripten::function("GetMouseCursor", &ImGui::GetMouseCursor);
     emscripten::function("SetMouseCursor", &ImGui::SetMouseCursor);
-    emscripten::function("CaptureMouseFromApp", &ImGui::CaptureMouseFromApp);
+    // emscripten::function("CaptureMouseFromApp", &ImGui::CaptureMouseFromApp);
 
     // Clipboard Utilities
     // - Also see the LogToClipboard() function to capture GUI into clipboard, or easily output text data to the clipboard.
@@ -3014,12 +3019,12 @@ EMSCRIPTEN_BINDINGS(ImGui) {
                 }), 
                 FUNCTION(void, (void* ptr, void* user_data), {
                     WrapImGuiContext* ctx = WrapImGuiContext::GetCurrentContext();
-                    ctx->_ImGui_SetAllocatorFunctions_free_func(emscripten::val(ptr), ctx->_ImGui_SetAllocatorFunctions_user_data);
+                    ctx->_ImGui_SetAllocatorFunctions_free_func(emscripten::val(ptr, emscripten::allow_raw_pointers()), ctx->_ImGui_SetAllocatorFunctions_user_data);
                 }), 
                 NULL);
         }
     }));
-    emscripten::function("MemAlloc", FUNCTION(emscripten::val, (size_t sz), { void* p = ImGui::MemAlloc(sz); return emscripten::val(p); }), emscripten::allow_raw_pointers());
+    emscripten::function("MemAlloc", FUNCTION(emscripten::val, (size_t sz), { void* p = ImGui::MemAlloc(sz); return emscripten::val(p, emscripten::allow_raw_pointers()); }), emscripten::allow_raw_pointers());
     emscripten::function("MemFree", FUNCTION(void, (emscripten::val ptr), { void* _ptr = ptr.as<void*>(emscripten::allow_raw_pointers()); ImGui::MemFree(_ptr); }));
     
     // https://github.com/osullivj/ImGuiDatePicker
