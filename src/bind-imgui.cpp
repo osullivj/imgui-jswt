@@ -1345,7 +1345,8 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         // float         MouseDragThreshold;       // = 6.0f               // Distance threshold before considering we are dragging
         CLASS_MEMBER(ImGuiIO, MouseDragThreshold)
         // int           KeyMap[ImGuiKey_COUNT];   // <unset>              // Map of indices into the KeysDown[512] entries array
-        /** .function("_getAt_KeyMap", FUNCTION(int, (const ImGuiIO& that, ImGuiKey index), {
+        /** KeyMap is DearImgui 1.87. Now we need to use AddKeyEvent()
+        .function("_getAt_KeyMap", FUNCTION(int, (const ImGuiIO& that, ImGuiKey index), {
             return (0 <= index && index < ImGuiKey_COUNT) ? that.KeyMap[index] : -1;
         }))
         .function("_setAt_KeyMap", FUNCTION(bool, (ImGuiIO& that, ImGuiKey index, int value), {
@@ -1492,6 +1493,11 @@ EMSCRIPTEN_BINDINGS(ImGuiIO) {
         }), emscripten::allow_raw_pointers())
         // inline void    ClearInputCharacters() { InputCharacters[0] = 0; }   // Clear the text input buffer manually
         CLASS_METHOD(ImGuiIO, ClearInputCharacters)
+
+        // IMGUI_API void  AddKeyEvent(ImGuiKey key, bool down);  
+        .function("AddKeyEvent", FUNCTION(void, (ImGuiIO& that, ImGuiKey k, bool down), {
+            that.AddKeyEvent(k, down);
+        }), emscripten::allow_raw_pointers())
 
         //------------------------------------------------------------------
         // Output - Retrieve after calling NewFrame()

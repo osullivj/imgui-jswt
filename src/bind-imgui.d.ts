@@ -33,7 +33,7 @@ type ImGuiCol = number;               // -> enum ImGuiCol_             // Enum: 
 type ImGuiCond = number;              // -> enum ImGuiCond_            // Enum: A condition for many Set*() functions
 type ImGuiDataType = number;          // -> enum ImGuiDataType_        // Enum: A primary data type
 type ImGuiDir = number;               // -> enum ImGuiDir_             // Enum: A cardinal direction
-type ImGuiKey = number;               // -> enum ImGuiKey_             // Enum: A key identifier (ImGui-side enum)
+export type ImGuiKey = number;               // -> enum ImGuiKey_             // Enum: A key identifier (ImGui-side enum)
 type ImGuiNavInput = number;          // -> enum ImGuiNavInput_        // Enum: An input identifier for navigation
 type ImGuiMouseButton = number;       // -> enum ImGuiMouseButton_     // Enum: A mouse button identifier (0=left, 1=right, 2=middle)
 type ImGuiMouseCursor = number;       // -> enum ImGuiMouseCursor_     // Enum: A mouse cursor identifier
@@ -1005,7 +1005,8 @@ export interface reference_ImGuiIO extends Emscripten.EmscriptenClassReference {
     AddInputCharactersUTF8(utf8_chars: string): void;
     // inline void    ClearInputCharacters() { InputCharacters[0] = 0; }   // Clear the text input buffer manually
     ClearInputCharacters(): void;
-
+    // IMGUI_API void  AddKeyEvent(ImGuiKey key, bool down);  
+    AddKeyEvent(k:ImGuiKey, down:boolean): void;
     //------------------------------------------------------------------
     // Output - Retrieve after calling NewFrame()
     //------------------------------------------------------------------
@@ -1064,6 +1065,8 @@ export interface reference_ImGuiIO extends Emscripten.EmscriptenClassReference {
     // float       NavInputsDownDuration[ImGuiNavInput_COUNT];
     _getAt_NavInputsDownDuration(index: number): number;
     // float       NavInputsDownDurationPrev[ImGuiNavInput_COUNT];
+
+ 
 
     // IMGUI_API   ImGuiIO();
 }
@@ -1986,6 +1989,8 @@ export interface Module extends Emscripten.EmscriptenModule {
     // IMGUI_API bool          IsKeyReleased(int user_key_index);                                  // was key released (went from Down to !Down)?
     // IMGUI_API int           GetKeyPressedAmount(int key_index, float repeat_delay, float rate); // uses provided repeat rate/delay. return a count, most often 0 or 1 but might be >1 if RepeatRate is small enough that DeltaTime > RepeatRate
     // IMGUI_API void          CaptureKeyboardFromApp(bool want_capture_keyboard_value = true);    // attention: misleading name! manually override io.WantCaptureKeyboard flag next frame (said flag is entirely left for your application to handle). e.g. force capture keyboard when your widget is being hovered. This is equivalent to setting "io.WantCaptureKeyboard = want_capture_keyboard_value"; after the next NewFrame() call.
+
+ 
     GetKeyIndex(imgui_key: ImGuiKey): number;
     IsKeyDown(user_key_index: number): boolean;
     IsKeyPressed(user_key_index: number, repeat: boolean): boolean;
