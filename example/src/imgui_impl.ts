@@ -268,6 +268,7 @@ export function Init(value: HTMLCanvasElement | WebGL2RenderingContext | WebGLRe
     io.BackendFlags |= ImGui.BackendFlags.HasMouseCursors;   // We can honor GetMouseCursor() values (optional)
 
     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
+    /**
     io.AddKeyEvent(ImGui.Key.Tab, true);
     io.AddKeyEvent(ImGui.Key.LeftArrow, true);
     io.AddKeyEvent(ImGui.Key.RightArrow, true);
@@ -289,7 +290,7 @@ export function Init(value: HTMLCanvasElement | WebGL2RenderingContext | WebGLRe
     io.AddKeyEvent(ImGui.Key.V, true);
     io.AddKeyEvent(ImGui.Key.X, true);
     io.AddKeyEvent(ImGui.Key.Y, true);
-    io.AddKeyEvent(ImGui.Key.Z, true);
+    io.AddKeyEvent(ImGui.Key.Z, true); */
 
     CreateDeviceObjects();
 }
