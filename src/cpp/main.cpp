@@ -245,7 +245,7 @@ protected:
             << ") msg: " << payload << std::endl;
 
         nlohmann::json msg_json = nlohmann::json::parse(payload);
-        ctx.on_duck_event(/*c, h, */ msg_json);
+        ctx.on_duck_event(msg_json);
     }
 
 

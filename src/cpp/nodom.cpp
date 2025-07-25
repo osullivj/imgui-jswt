@@ -801,6 +801,9 @@ void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
     int column_count = 0;
     if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         // TODO: resolve cname to Arrow ptr
+        std::uint64_t arrow_ptr_val = data[cname];
+        std::shared_ptr<arrow::Table> arrow_table(reinterpret_cast<arrow::Table*>(arrow_ptr_val));
+        auto& schema(arrow_table->GetSchema());
     }
 
 
