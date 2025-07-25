@@ -410,9 +410,10 @@ function render_footer(ctx:NDContext, w: Widget): void {
     if (ctx.font) {
         ImGui.PushFont(ctx.font);
         ImGui.Text(`${ctx.font.GetDebugName()}`);
-        if (ctx.font.FindGlyphNoFallback(0x5929)) {
-            ImGui.Text(`U+5929: \u5929`);
-        }
+        // FindGlyphNoFallback no longer an ImFont method in 1.90.x
+        // if (ctx.font.FindGlyphNoFallback(0x5929)) {
+        //     ImGui.Text(`U+5929: \u5929`);
+        // }
         ImGui.PopFont();
     }
 }   
@@ -959,9 +960,9 @@ async function _init(): Promise<void> {
     // Setup Dear ImGui context
     ImGui.CHECKVERSION();
     ImGui.CreateContext();
-    // const io: ImGui.IO = ImGui.GetIO();
-    //io.ConfigFlags |= ImGui.ConfigFlags.NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGui.ConfigFlags.NavEnableGamepad;      // Enable Gamepad Controls
+    const io: ImGui.IO = ImGui.GetIO();
+    io.ConfigFlags |= ImGui.ConfigFlags.NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGui.ConfigFlags.NavEnableGamepad;      // Enable Gamepad Controls
 
     // Setup Dear ImGui style
     ImGui.StyleColorsDark();
@@ -983,19 +984,15 @@ async function _init(): Promise<void> {
     // font = await AddFontFromFileTTF("https://raw.githubusercontent.com/googlei18n/noto-cjk/master/NotoSansJP-Regular.otf", 18.0, null, io.Fonts.GetGlyphRangesJapanese());
     // ImGui.ASSERT(font !== null);
 
-    // Setup Platform/Renderer backends
+    // Setup Platform/Renderer backends, if not in browser...
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
+
+    // imgui 1.90 introduced some font changes meaning we must have a
+    // preloaded font before rendering first frame
+    await _nd_ctx.init();
     if (typeof(window) !== "undefined") {
         ImGui_Impl.Init(_nd_ctx.create_canvas());
-    } else {
-        ImGui_Impl.Init(null);
-    }
-    
-    if (typeof(window) !== "undefined") {
-        // all the heavyweight init should be done here, before the animation loop starts
-        // TODO: exception handling to raise modal dialog on connection failure
-        await _nd_ctx.init();
         window.requestAnimationFrame(_loop);
     }
 }

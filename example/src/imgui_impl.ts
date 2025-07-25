@@ -268,28 +268,29 @@ export function Init(value: HTMLCanvasElement | WebGL2RenderingContext | WebGLRe
     io.BackendFlags |= ImGui.BackendFlags.HasMouseCursors;   // We can honor GetMouseCursor() values (optional)
 
     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
-    io.KeyMap[ImGui.Key.Tab] = 9;
-    io.KeyMap[ImGui.Key.LeftArrow] = 37;
-    io.KeyMap[ImGui.Key.RightArrow] = 39;
-    io.KeyMap[ImGui.Key.UpArrow] = 38;
-    io.KeyMap[ImGui.Key.DownArrow] = 40;
-    io.KeyMap[ImGui.Key.PageUp] = 33;
-    io.KeyMap[ImGui.Key.PageDown] = 34;
-    io.KeyMap[ImGui.Key.Home] = 36;
-    io.KeyMap[ImGui.Key.End] = 35;
-    io.KeyMap[ImGui.Key.Insert] = 45;
-    io.KeyMap[ImGui.Key.Delete] = 46;
-    io.KeyMap[ImGui.Key.Backspace] = 8;
-    io.KeyMap[ImGui.Key.Space] = 32;
-    io.KeyMap[ImGui.Key.Enter] = 13;
-    io.KeyMap[ImGui.Key.Escape] = 27;
-    io.KeyMap[ImGui.Key.KeyPadEnter] = key_code_to_index["NumpadEnter"];
-    io.KeyMap[ImGui.Key.A] = 65;
-    io.KeyMap[ImGui.Key.C] = 67;
-    io.KeyMap[ImGui.Key.V] = 86;
-    io.KeyMap[ImGui.Key.X] = 88;
-    io.KeyMap[ImGui.Key.Y] = 89;
-    io.KeyMap[ImGui.Key.Z] = 90;
+    /**
+    io.AddKeyEvent(ImGui.Key.Tab, true);
+    io.AddKeyEvent(ImGui.Key.LeftArrow, true);
+    io.AddKeyEvent(ImGui.Key.RightArrow, true);
+    io.AddKeyEvent(ImGui.Key.UpArrow, true);
+    io.AddKeyEvent(ImGui.Key.DownArrow, true);
+    io.AddKeyEvent(ImGui.Key.PageUp, true);
+    io.AddKeyEvent(ImGui.Key.PageDown, true);
+    io.AddKeyEvent(ImGui.Key.Home, true);
+    io.AddKeyEvent(ImGui.Key.End, true);
+    io.AddKeyEvent(ImGui.Key.Insert, true);
+    io.AddKeyEvent(ImGui.Key.Delete, true);
+    io.AddKeyEvent(ImGui.Key.Backspace, true);
+    io.AddKeyEvent(ImGui.Key.Space, true);
+    io.AddKeyEvent(ImGui.Key.Enter, true);
+    io.AddKeyEvent(ImGui.Key.Escape, true);
+    io.AddKeyEvent(ImGui.Key.KeyPadEnter, true);
+    io.AddKeyEvent(ImGui.Key.A, true);
+    io.AddKeyEvent(ImGui.Key.C, true);
+    io.AddKeyEvent(ImGui.Key.V, true);
+    io.AddKeyEvent(ImGui.Key.X, true);
+    io.AddKeyEvent(ImGui.Key.Y, true);
+    io.AddKeyEvent(ImGui.Key.Z, true); */
 
     CreateDeviceObjects();
 }

@@ -2513,16 +2513,19 @@ export class ImGuiIO
     // float         MouseDragThreshold;       // = 6.0f               // Distance threshold before considering we are dragging
     get MouseDragThreshold(): number { return this.native.MouseDragThreshold; }
     set MouseDragThreshold(value: number) { this.native.MouseDragThreshold = value; }
+    // KeyMap is DearImgui 1.87
     // int           KeyMap[ImGuiKey_COUNT];   // <unset>              // Map of indices into the KeysDown[512] entries array
-    public KeyMap: number[] = new Proxy([], {
-        get: (target: number[], key: PropertyKey): number => {
-            if (key === "length") { return ImGuiKey.COUNT; }
-            return this.native._getAt_KeyMap(Number(key));
-        },
-        set: (target: number[], key: PropertyKey, value: number): boolean => {
-            return this.native._setAt_KeyMap(Number(key), value);
-        },
-    });
+    // public KeyMap: number[] = new Proxy([], {
+    //     get: (target: number[], key: PropertyKey): number => {
+    //        if (key === "length") { return ImGuiKey.COUNT; }
+    //        return this.native._getAt_KeyMap(Number(key));
+    //    },
+    //    set: (target: number[], key: PropertyKey, value: number): boolean => {
+    //        return this.native._setAt_KeyMap(Number(key), value);
+    //    },
+    // });
+    // For DearImgui 1.92 we need to use the new KB IO API
+    // github.com/ocornut/imgui/issues/4921
     // float         KeyRepeatDelay;           // = 0.250f             // When holding a key/button, time before it starts repeating, in seconds (for buttons in Repeat mode, etc.).
     get KeyRepeatDelay(): number { return this.native.KeyRepeatDelay; }
     set KeyRepeatDelay(value: number) { this.native.KeyRepeatDelay = value; }
@@ -2677,6 +2680,8 @@ export class ImGuiIO
     public AddInputCharactersUTF8(utf8_chars: string): void { this.native.AddInputCharactersUTF8(utf8_chars); }
     // inline void    ClearInputCharacters() { InputCharacters[0] = 0; }   // Clear the text input buffer manually
     public ClearInputCharacters(): void { this.native.ClearInputCharacters(); }
+    // IMGUI_API void  AddKeyEvent(ImGuiKey key, bool down);  
+    public AddKeyEvent(k:ImGuiKey, down:boolean): void { this.native.AddKeyEvent(k, down); }
 
     //------------------------------------------------------------------
     // Output - Retrieve after calling NewFrame()
@@ -2760,6 +2765,7 @@ export class ImGuiIO
     // ImWchar16   InputQueueSurrogate;            // For AddInputCharacterUTF16
     // ImVector<ImWchar> InputQueueCharacters;     // Queue of _characters_ input (obtained by platform backend). Fill using AddInputCharacter() helper.
 
+ 
     // IMGUI_API   ImGuiIO();
 }
 
