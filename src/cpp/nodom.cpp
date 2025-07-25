@@ -18,6 +18,8 @@
 #include <pybind11/embed.h>
 #include "pybind11_json.hpp"
 #include "nodom.hpp"
+#include <arrow/python/pyarrow.h>
+#include <arrow/api.h>
 
 // Python consts
 static char* on_data_change_cs("on_data_change");
@@ -803,7 +805,7 @@ void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
         // TODO: resolve cname to Arrow ptr
         std::uint64_t arrow_ptr_val = data[cname];
         std::shared_ptr<arrow::Table> arrow_table(reinterpret_cast<arrow::Table*>(arrow_ptr_val));
-        auto& schema(arrow_table->GetSchema());
+        const std::shared_ptr<arrow::Schema>& schema(arrow_table->schema());
     }
 
 
