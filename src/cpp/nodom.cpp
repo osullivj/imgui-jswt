@@ -67,7 +67,7 @@ NDServer::NDServer(int argc, char** argv)
         std::stringstream json_buffer;
         std::ifstream in_file_stream(bb_json_path);
         json_buffer << in_file_stream.rdbuf();
-        py_config = nlohmann::json::parse(json_buffer);
+        bb_config = nlohmann::json::parse(json_buffer);
     }
     catch (...) {
         printf("cannot load breadboard.json");
@@ -102,8 +102,8 @@ bool NDServer::init_python()
         PyConfig_SetString(&config, &config.executable, wc_buf);
 
         // now get base_prefix (orig py install dir) and prefix (venv) from breadboard.json
-        std::string base_prefix = py_config["base_prefix"];
-        std::string prefix = py_config["prefix"];
+        std::string base_prefix = bb_config["base_prefix"];
+        std::string prefix = bb_config["prefix"];
         std::mbstowcs(wc_buf, base_prefix.c_str(), ND_WC_BUF_SZ);
         PyConfig_SetString(&config, &config.base_prefix, wc_buf);
         std::mbstowcs(wc_buf, prefix.c_str(), ND_WC_BUF_SZ);

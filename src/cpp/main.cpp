@@ -42,7 +42,7 @@ static bool show_demo_window = true;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 // int im_main(int argc, char** argv)
-GLFWwindow* im_start()
+GLFWwindow* im_start(NDContext& ctx)
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -79,6 +79,8 @@ GLFWwindow* im_start()
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
 
+    nlohmann::json bbcfg(ctx.get_breadboard_config());
+
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -89,6 +91,12 @@ GLFWwindow* im_start()
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsClassic();
+
+    // setup scaling
+    ImGuiStyle& style = ImGui::GetStyle();
+    float scale = bbcfg.value("font_size_base", 20.0);
+    style.ScaleAllSizes(scale);
+    style.FontScaleDpi = scale;
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -101,13 +109,15 @@ GLFWwindow* im_start()
     // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
     // - Read 'docs/FONTS.md' for more instructions and details.
     // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != NULL);
+    io.Fonts->AddFontDefault();
+
+    for (auto jfont : bbcfg["fonts"]) {
+        // fonts is an untyped list of strings. so we get<std::str>()
+        // to coerce and avoid extra quotes
+        std::string fname(jfont.get<std::string>());
+        ImFont* font = io.Fonts->AddFontFromFileTTF(fname.c_str());
+        IM_ASSERT(font != NULL);
+    }
 
     // Our state
     return window;
@@ -177,7 +187,7 @@ using websocketpp::lib::bind;
 
 class NDWebSockClient {
 public:
-    NDWebSockClient(const std::string& url, NDContext& c) : uri(url), ctx(c), window(im_start()) {
+    NDWebSockClient(const std::string& url, NDContext& c) : uri(url), ctx(c), window(im_start(c)) {
         client.set_access_channels(websocketpp::log::alevel::all);
         client.clear_access_channels(websocketpp::log::alevel::frame_payload);
         client.init_asio();

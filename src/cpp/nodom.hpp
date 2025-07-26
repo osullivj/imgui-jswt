@@ -39,6 +39,7 @@ public:             // All public methods exec on the cpp thread
     void            duck_dispatch(nlohmann::json& db_request);
     void            get_server_responses(std::queue<nlohmann::json>& responses);
     void            set_done(bool d) { done = d; }
+    nlohmann::json  get_breadboard_config() { return bb_config; }
 
 protected:
     // cpp thread
@@ -51,9 +52,8 @@ protected:
     void marshall_server_responses(pybind11::list& server_changes_p, nlohmann::json& server_changes_j,
                                     const std::string& type_filter);
 
-
 private:
-    nlohmann::json                      py_config;
+    nlohmann::json                      bb_config;
     pybind11::object                    on_data_change_f;
     pybind11::object                    duck_request_f;
     bool                                is_duck_app;
@@ -95,6 +95,8 @@ public:
     void set_done(bool d) { server.set_done(d); }
 
     void on_duck_event(nlohmann::json& duck_msg);
+
+    nlohmann::json  get_breadboard_config() { return server.get_breadboard_config(); }
 
     void register_ws_callback(ws_sender send) { ws_send = send; }
 
