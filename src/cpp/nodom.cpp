@@ -434,14 +434,14 @@ void NDContext::render()
     // address pending pops first: maintaining ordering by working from front to back
     // as that is the order they would land on the stack if not pushed during rendering
     while (!pending_pops.empty()) {
-        pop(pending_pops.front());
+        pop_widget(pending_pops.front());
         pending_pops.pop_front();
     }
     // drain pending_pushes onto the render stack, maintaining
     // the stack order we would have had if the push had
     // happended intra-render. JOS 2025-01-31
     while (!pending_pushes.empty()) {
-        push(pending_pushes.front());
+        push_widget(pending_pushes.front());
         pending_pushes.pop_front();
     }
     // This loop breaks if we raise a modal as changing stack state while this
@@ -819,12 +819,12 @@ void NDContext::render_table(nlohmann::json& w)
     
 }
 
-void NDContext::push(nlohmann::json& w)
+void NDContext::push_widget(nlohmann::json& w)
 {
     stack.push_back(w);
 }
 
-void NDContext::pop(const std::string& rname)
+void NDContext::pop_widget(const std::string& rname)
 {
     // if rname is empty we pop without checks
     // if rname specifies a class we check the
@@ -839,4 +839,19 @@ void NDContext::pop(const std::string& rname)
     }
 }
 
+void NDContext::push_font(const std::string& font_name)
+{
+    const static char* method = "NDContext::push_font: ";
+    const auto it = font_map.find(font_name);
+    if (it != font_map.end()) {
+        ImGui::PushFont(it->second);
+    }
+    else {
+        std::cerr << method << "unknown font: " << font_name << std::endl;
+    }
+}
 
+void NDContext::pop_font()
+{
+    ImGui::PopFont();
+}

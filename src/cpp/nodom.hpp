@@ -100,6 +100,8 @@ public:
 
     void register_ws_callback(ws_sender send) { ws_send = send; }
 
+    void register_font(const std::string& name, ImFont* f) { font_map[name] = f; }
+
 protected:
     void dispatch_render(nlohmann::json& w);        // w["rname"] resolve & invoke
     void action_dispatch(const std::string& action, const std::string& nd_event);
@@ -124,10 +126,11 @@ protected:
     void render_duck_parquet_loading_modal(nlohmann::json& w);
     void render_table(nlohmann::json& w);
 
-    void push(nlohmann::json& w);
-    void pop(const std::string& rname = "");
+    void push_widget(nlohmann::json& w);
+    void pop_widget(const std::string& rname = "");
 
-
+    void push_font(const std::string& font_name);
+    void pop_font();
 private:
     // ref to "server process"; in reality it's just a Service class instance
     // with no event loop and synchornous dispatch across c++py boundary
@@ -156,6 +159,8 @@ private:
     ImColor green;  // ImGui.COL32(102, 153, 0);
     ImColor amber;  // ImGui.COL32(255, 153, 0);
     ImColor db_status_color;
+
+    std::map<std::string, ImFont*>  font_map;
 
     // default value for invoking std::find on nlohmann JSON iterators
     std::string null_value = "null_value";
