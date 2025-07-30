@@ -129,8 +129,8 @@ protected:
     void push_widget(nlohmann::json& w);
     void pop_widget(const std::string& rname = "");
 
-    void push_font(const std::string& font_name);
-    void pop_font();
+    void push_font(nlohmann::json& w);
+    void pop_font(nlohmann::json& w);
 private:
     // ref to "server process"; in reality it's just a Service class instance
     // with no event loop and synchornous dispatch across c++py boundary
