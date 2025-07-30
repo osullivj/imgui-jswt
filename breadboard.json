@@ -2,9 +2,9 @@
     "base_prefix":"C:\\osullivj\\bin\\py3.12.3x64",
     "prefix":"C:\\osullivj\\src\\h3gui\\venv",
     "nd_py_source":"C:\\osullivj\\src\\h3gui\\src\\py",
-    "fonts":[
-        "c:\\windows\\fonts\\Arial.ttf",
-        "c:\\windows\\fonts\\cour.ttf"
-    ],
-    "font_size_base":20
+    "fonts":{
+        "Courier":"c:\\windows\\fonts\\cour.ttf",
+        "Arial":"c:\\windows\\fonts\\Arial.ttf"
+    },
+    "font_size_base":4
 }

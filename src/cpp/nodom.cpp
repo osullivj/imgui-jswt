@@ -44,6 +44,7 @@ static char* service_cs("service");
 static char* breadboard_cs("breadboard");
 static char* duck_module_cs("duck_module");
 static char* empty_cs("");
+static char* nodom_cs("NoDOM");
 
 
 NDServer::NDServer(int argc, char** argv)
@@ -324,8 +325,9 @@ NDContext::NDContext(NDServer& s)
     // however, not all widgets are children. For instance modals
     // like parquet_loading_modal have to be explicitly pushed
     // on to the render stack by an event. JOS 2025-01-31
+    // Fonts appear in layout now. JOS 2025-07-29
     for (nlohmann::json::iterator it = layout.begin(); it != layout.end(); ++it) {
-        std::cout << "NDcontext.ctor: pushable: " << *it << std::endl;
+        std::cout << "NDcontext.ctor: layout: " << *it << std::endl;
         std::string widget_id = it->value("widget_id", "");
         if (!widget_id.empty()) {
             std::cout << "NDcontext.ctor: pushable: " << widget_id << ":" << *it << std::endl;
@@ -345,7 +347,7 @@ NDContext::NDContext(NDServer& s)
     rfmap.emplace(std::string("DuckTableSummaryModal"), [this](nlohmann::json& w) { render_duck_table_summary_modal(w); });
     rfmap.emplace(std::string("DuckParquetLoadingModal"), [this](nlohmann::json& w) { render_duck_parquet_loading_modal(w); });
     rfmap.emplace(std::string("Table"), [this](nlohmann::json& w) { render_table(w); });
-
+    rfmap.emplace(std::string("Font"), [this](nlohmann::json& w) { push_font(w); });
     // Home on the render stack
     stack.push_back(layout[0]);
 }
@@ -465,7 +467,14 @@ void NDContext::dispatch_render(nlohmann::json& w)
         printf(error_buf.str().c_str());
         return;
     }
-    auto it = rfmap.find(w["rname"]);
+    const std::string& rname(w["rname"]);
+    auto it = rfmap.find(rname);
+    if (it == rfmap.end()) {
+        std::stringstream error_buf;
+        error_buf << "dispatch_render: unknown rname in " << w << "\n";
+        printf(error_buf.str().c_str());
+        return;
+    }
     it->second(w);
 }
 
@@ -570,11 +579,34 @@ void NDContext::action_dispatch(const std::string& action, const std::string& nd
 
 void NDContext::render_home(nlohmann::json& w)
 {
-    std::string title = w.value(nlohmann::json::json_pointer("/cspec/title"), "nodom");
+    if (!w.contains("cspec")) {
+        std::cerr << "render_home: no cspec in w(" << w << ")" << std::endl;
+        return;
+    }
+    nlohmann::json& cspec = w["cspec"];
+    std::string title(nodom_cs);
+    if (cspec.contains("title")) {
+        title = cspec["title"];
+    }
+    boolean pop_font = false;
+    if (cspec.contains("font")) {
+        std::string font_name = cspec["font"];
+        auto font_it = font_map.find(font_name);
+        if (font_it != font_map.end()) {
+            ImGui::PushFont(font_it->second, 0.0);
+            pop_font = true;
+        }
+        else {
+            std::cerr << "render_home: bad font cspec in w(" << w << ")" << std::endl;
+        }
+    }
     ImGui::Begin(title.c_str());
     nlohmann::json& children = w["children"];
     for (nlohmann::json::iterator it = children.begin(); it != children.end(); ++it) {
         dispatch_render(*it);
+    }
+    if (pop_font) {
+        ImGui::PopFont();
     }
     ImGui::End();
 }
@@ -807,9 +839,6 @@ void NDContext::render_duck_table_summary_modal(nlohmann::json& w)
         std::shared_ptr<arrow::Table> arrow_table(reinterpret_cast<arrow::Table*>(arrow_ptr_val));
         const std::shared_ptr<arrow::Schema>& schema(arrow_table->schema());
     }
-
-
-
  
 }
 
