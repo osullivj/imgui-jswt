@@ -634,7 +634,6 @@ class NDContext {
 
     async load_font_ttf(url: string, size_pixels: number, font_cfg: ImGui.FontConfig | null = null, glyph_ranges: number | null = null): Promise<ImGui.Font> {
         this.io = ImGui.GetIO();
-        this.io.Fonts.AddFontDefault();
         font_cfg = font_cfg || new ImGui.FontConfig();
         font_cfg.Name = font_cfg.Name || `${url.split(/[\\\/]/).pop()}, ${size_pixels.toFixed(0)}px`;
         return this.io.Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
@@ -681,11 +680,14 @@ class NDContext {
         console.log('NDContext.init: ' + layout_json);
         this.layout = JSON.parse(layout_json) as Array<Widget>;
         this.layout.forEach( (w) => {if (w.widget_id) this.pushable.set(w.widget_id, w);});
+
         // Load font: TODO module JS script font config
         console.log('NDContext.init: loading fonts');
-        this.font_map.set("Courier", await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0));
-        this.font_map.set("Arial", await this.load_font_ttf("../imgui/misc/fonts/DroidSans.ttf", 16.0));
-        this.font_map.set("Roboto", await this.load_font_ttf("../imgui/misc/fonts/Cousine-Regular.ttf", 16.0));
+        this.io = ImGui.GetIO();
+        this.io.Fonts.AddFontDefault();
+        // this.font_map.set("Courier", await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0));
+        // this.font_map.set("Arial", await this.load_font_ttf("../imgui/misc/fonts/DroidSans.ttf", 16.0));
+        // this.font_map.set("Roboto", await this.load_font_ttf("../imgui/misc/fonts/Cousine-Regular.ttf", 16.0));
 
         // Finally, tee up the first element in layout to render: home
         this.push(this.layout[0]);
@@ -990,7 +992,12 @@ async function _init(): Promise<void> {
     // ImGui_ImplOpenGL3_Init(glsl_version);
 
     // imgui 1.90 introduced some font changes meaning we must have a
-    // preloaded font before rendering first frame
+    // preloaded font before rendering first frame, as well as setting 
+    // font_size_base via styles...
+    const gui_style:ImGui.ImGuiStyle = ImGui.GetStyle();
+    gui_style.ScaleAllSizes(10.0);
+    // TODO: expose FontScaleDpi
+    //gui_style.FontScaleDpi = 10.0;
 
     if (typeof(window) !== "undefined") {
         ImGui_Impl.Init(_nd_ctx.create_canvas());
