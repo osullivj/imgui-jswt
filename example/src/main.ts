@@ -176,9 +176,21 @@ function render_children(ctx:NDContext, parent_widget: Widget): void {
 function render_home(ctx:NDContext, w: Widget): void {
     // as keyof CacheMap clause here is critical
     // as w.cspec["title"] will not compile...
+    let font = null;
     let title = w.cspec["title" as keyof CacheMap] as string;
+    let font_name = w.cspec["font" as keyof CacheMap] as string;
+    let font_size_base = w.cspec["font_size_base" as keyof CacheMap] as number;
+    if (font_name) {
+        font = ctx.font_map.get(font_name);
+        if (font) {
+            ImGui.PushFont( font);
+        }
+    }
     ImGui.Begin(title ? title : "nodom");
     render_children(ctx, w);
+    if (font) {
+        ImGui.PopFont();
+    }
     ImGui.End();
 }
 
@@ -406,16 +418,6 @@ function render_footer(ctx:NDContext, w: Widget): void {
         ImGui.Text(`Total allocated space (uordblks):      ${mi.uordblks}`);
         ImGui.Text(`Total free space (fordblks):           ${mi.fordblks}`);
     }
-       
-    if (ctx.font) {
-        ImGui.PushFont(ctx.font);
-        ImGui.Text(`${ctx.font.GetDebugName()}`);
-        // FindGlyphNoFallback no longer an ImFont method in 1.90.x
-        // if (ctx.font.FindGlyphNoFallback(0x5929)) {
-        //     ImGui.Text(`U+5929: \u5929`);
-        // }
-        ImGui.PopFont();
-    }
 }   
 
 
@@ -526,6 +528,17 @@ function render_table(ctx:NDContext, w: Widget): void {
     }
 }
 
+function push_font(ctx:NDContext, w: Widget): void {
+    let font_name = w.cspec["font" as keyof CacheMap] as string;
+    let font_size_base = w.cspec["font_size_base" as keyof CacheMap] as number;
+    if (ctx.font_map.has(font_name)) {
+        ImGui.PushFont(ctx.font_map.get(font_name) as ImGui.ImFont);
+    }
+}
+
+function pop_font(ctx:NDContext, w: Widget): void {
+    ImGui.PopFont();
+}
 
 let nd_url = (locn:Location, upath:string): string => {
     return locn.protocol + "//" + locn.hostname + ":" + locn.port + upath;
@@ -555,12 +568,15 @@ class NDContext {
             ["DuckTableSummaryModal", render_duck_table_summary_modal],
             ["DuckParquetLoadingModal", render_duck_parquet_loading_modal],
             ["Table", render_table],
+            ["PushFont", push_font],
+            ["PopFont", pop_font],
         ]);      // render functions    
     // consts
     update_interval: number = 50;
     init_interval: number = 1000;
     // fonts
-    font: ImGui.Font|null = null;
+    font_map: Map<string, ImGui.Font> = new Map<string, ImGui.Font>();
+    // font: ImGui.Font|null = null;
     io: ImGui.IO|null = null;
     // colours: https://www.w3schools.com/colors/colors_picker.asp
     red: number = ImGui.COL32(255, 51, 0);
@@ -667,8 +683,9 @@ class NDContext {
         this.layout.forEach( (w) => {if (w.widget_id) this.pushable.set(w.widget_id, w);});
         // Load font: TODO module JS script font config
         console.log('NDContext.init: loading fonts');
-        this.font = await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
-        ImGui.ASSERT(this.font !== null);
+        this.font_map.set("Courier", await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0));
+        this.font_map.set("Arial", await this.load_font_ttf("../imgui/misc/fonts/DroidSans.ttf", 16.0));
+        this.font_map.set("Roboto", await this.load_font_ttf("../imgui/misc/fonts/Cousine-Regular.ttf", 16.0));
 
         // Finally, tee up the first element in layout to render: home
         this.push(this.layout[0]);
@@ -968,31 +985,16 @@ async function _init(): Promise<void> {
     ImGui.StyleColorsDark();
     //ImGui.StyleColorsClassic();
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    // io.Fonts.AddFontDefault();
-    // font = await AddFontFromFileTTF("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0);
-    // font = await AddFontFromFileTTF("../imgui/misc/fonts/Cousine-Regular.ttf", 15.0);
-    // font = await AddFontFromFileTTF("../imgui/misc/fonts/DroidSans.ttf", 16.0);
-    // font = await AddFontFromFileTTF("../imgui/misc/fonts/ProggyTiny.ttf", 10.0);
-    // font = await AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0, null, io.Fonts.GetGlyphRangesJapanese());
-    // font = await AddFontFromFileTTF("https://raw.githubusercontent.com/googlei18n/noto-cjk/master/NotoSansJP-Regular.otf", 18.0, null, io.Fonts.GetGlyphRangesJapanese());
-    // ImGui.ASSERT(font !== null);
-
     // Setup Platform/Renderer backends, if not in browser...
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     // ImGui_ImplOpenGL3_Init(glsl_version);
 
     // imgui 1.90 introduced some font changes meaning we must have a
     // preloaded font before rendering first frame
-    await _nd_ctx.init();
+
     if (typeof(window) !== "undefined") {
         ImGui_Impl.Init(_nd_ctx.create_canvas());
+        await _nd_ctx.init();
         window.requestAnimationFrame(_loop);
     }
 }
