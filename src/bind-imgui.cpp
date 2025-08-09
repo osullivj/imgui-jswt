@@ -1,6 +1,6 @@
 #include "imgui.h"
 #include "ImGuiDatePicker.hpp"
-
+#include "imgui_impl_opengl3.h"
 #ifndef __FLT_MAX__
 #define __FLT_MAX__ 3.40282346638528859812e+38F
 #endif
@@ -13,6 +13,7 @@ void ImGui::ShowFontSelector(const char*) {}
 #endif
 
 #include <emscripten/bind.h>
+
 
 #define FUNCTION(RET, ARGS, CODE...) \
     emscripten::optional_override([] ARGS -> RET { CODE })
@@ -51,11 +52,11 @@ void ImGui::ShowFontSelector(const char*) {}
 #define CLASS_METHOD(CLASS, METHOD) \
     .function(#METHOD, &CLASS::METHOD)
 
-// EMSCRIPTEN_BINDINGS(version) {
-//     emscripten::constant("__EMSCRIPTEN_major__", __EMSCRIPTEN_major__);
-//     emscripten::constant("__EMSCRIPTEN_minor__", __EMSCRIPTEN_minor__);
-//     emscripten::constant("__EMSCRIPTEN_tiny__", __EMSCRIPTEN_tiny__);
-// }
+EMSCRIPTEN_BINDINGS(version) {
+    emscripten::constant("__EMSCRIPTEN_major__", 4);
+    emscripten::constant("__EMSCRIPTEN_minor__", 0);
+    emscripten::constant("__EMSCRIPTEN_tiny__", 11);
+}
 
 #include <malloc.h>
 
@@ -3042,4 +3043,8 @@ EMSCRIPTEN_BINDINGS(ImGui) {
     emscripten::function("Spinner", FUNCTION(bool, (std::string label, float radius, int thickness, int col), {
         return ImGui::Spinner(label.c_str(), radius, thickness, col);
     }));
+
+    // We were on 1.86, now 1.92. There is now an EMS makefile in imgui's openGL3 example, which invokes renderer
+    // specific init needed to set that flags.
+    // emscripten::function("OpenGL3_Init", FUNCTION(bool, (std::string ver), {return ImGui_ImplOpenGL3_Init(ver.c_str()); } ));
 }

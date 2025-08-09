@@ -636,6 +636,7 @@ class NDContext {
         this.io = ImGui.GetIO();
         font_cfg = font_cfg || new ImGui.FontConfig();
         font_cfg.Name = font_cfg.Name || `${url.split(/[\\\/]/).pop()}, ${size_pixels.toFixed(0)}px`;
+        // font_cfg.FontDataOwnedByAtlas = false;
         return this.io.Fonts.AddFontFromMemoryTTF(await LoadArrayBuffer(url), size_pixels, font_cfg, glyph_ranges);
     }
 
@@ -682,13 +683,16 @@ class NDContext {
         this.layout.forEach( (w) => {if (w.widget_id) this.pushable.set(w.widget_id, w);});
 
         // Load font: TODO module JS script font config
-        console.log('NDContext.init: loading fonts');
+        console.log('NDContext.init: loading fonts...');
         this.io = ImGui.GetIO();
-        this.io.Fonts.AddFontDefault();
+        // this.io.Fonts.AddFontDefault();
         // this.font_map.set("Courier", await this.load_font_ttf("../imgui/misc/fonts/Roboto-Medium.ttf", 16.0));
         // this.font_map.set("Arial", await this.load_font_ttf("../imgui/misc/fonts/DroidSans.ttf", 16.0));
         // this.font_map.set("Roboto", await this.load_font_ttf("../imgui/misc/fonts/Cousine-Regular.ttf", 16.0));
-
+        // this.io.Fonts.Build();
+        // this.io.Fonts.GetTexDataAsRGBA32();
+        // ImGui_Impl.CreateFontsTexture();
+        console.log('NDContext.init: fonts are built');
         // Finally, tee up the first element in layout to render: home
         this.push(this.layout[0]);
 
@@ -981,24 +985,22 @@ async function _init(): Promise<void> {
     ImGui.CreateContext();
     const io: ImGui.IO = ImGui.GetIO();
     io.ConfigFlags |= ImGui.ConfigFlags.NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGui.ConfigFlags.NavEnableGamepad;      // Enable Gamepad Controls
-
+    // io.ConfigFlags |= ImGui.ConfigFlags.NavEnableGamepad;      // Enable Gamepad Controls
+    io.BackendFlags |= ImGui.BackendFlags.RendererHasTextures;
     // Setup Dear ImGui style
     ImGui.StyleColorsDark();
     //ImGui.StyleColorsClassic();
 
     // Setup Platform/Renderer backends, if not in browser...
     // ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-    // ImGui_ImplOpenGL3_Init(glsl_version);
+    // ImGui.OpenGL3_Init("OpenGL ES 2");
 
     // imgui 1.90 introduced some font changes meaning we must have a
     // preloaded font before rendering first frame, as well as setting 
     // font_size_base via styles...
     const gui_style:ImGui.ImGuiStyle = ImGui.GetStyle();
-    gui_style.ScaleAllSizes(10.0);
-    // TODO: expose FontScaleDpi
-    //gui_style.FontScaleDpi = 10.0;
-
+    gui_style.FontScaleDpi = 2.0;
+    gui_style.ScaleAllSizes(1.0);
     if (typeof(window) !== "undefined") {
         ImGui_Impl.Init(_nd_ctx.create_canvas());
         await _nd_ctx.init();
@@ -1024,6 +1026,7 @@ function _loop(time: number): void {
     if (show_demo_window)
         ShowDemoWindow((value = show_demo_window) => show_demo_window = value);
 
+    console.log('Current font size:' + ImGui.GetFontSize());
     _nd_ctx.render();   
 
     ImGui.EndFrame();

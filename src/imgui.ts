@@ -672,6 +672,7 @@ export enum ImGuiBackendFlags {
     HasMouseCursors       = 1 << 1,   // Back-end can honor GetMouseCursor() values and change the OS cursor shape.
     HasSetMousePos        = 1 << 2,   // Back-end can honor io.WantSetMousePos and reposition the mouse (only used if ImGuiConfigFlags_NavEnableSetMousePos is set).
     RendererHasVtxOffset  = 1 << 3,   // Back-end Renderer supports ImDrawCmd::VtxOffset. This enables output of large meshes (64K+ vertices) while still using 16-bits indices.
+    RendererHasTextures   = 1 << 4
 }
 
 // Flags for InvisibleButton() [extended in imgui_internal.h]
@@ -2301,6 +2302,9 @@ export class ImGuiViewport
 
 // a script version of Bind.ImGuiStyle with matching interface
 class script_ImGuiStyle implements Bind.interface_ImGuiStyle {
+    public FontSizeBase: number = 1.0;
+    public FontScaleMain: number = 1.0;
+    public FontScaleDpi: number = 1.0;
     public Alpha: number = 1.0;
     public DisabledAlpha: number = 0.6;
     public WindowPadding: ImVec2 = new ImVec2(8, 8);
@@ -2374,6 +2378,9 @@ export class ImGuiStyle
 {
     constructor(public readonly internal: Bind.interface_ImGuiStyle = new script_ImGuiStyle()) {}
 
+    get FontSizeBase(): number { return this.internal.FontSizeBase;} set FontSizeBase(value: number) { this.internal.FontSizeBase = value; }
+    get FontScaleMain(): number { return this.internal.FontScaleMain;} set FontScaleMain(value: number) { this.internal.FontScaleMain = value; }
+    get FontScaleDpi(): number { return this.internal.FontScaleDpi;} set FontScaleDpi(value: number) { this.internal.FontScaleDpi = value; }
     get Alpha(): number { return this.internal.Alpha; } set Alpha(value: number) { this.internal.Alpha = value; }
     get DisabledAlpha(): number { return this.internal.DisabledAlpha; } set DisabledAlpha(value: number) { this.internal.DisabledAlpha = value; }
     get WindowPadding(): Bind.interface_ImVec2 { return this.internal.WindowPadding; }
@@ -2425,6 +2432,9 @@ export class ImGuiStyle
     });
 
     public Copy(other: Readonly<ImGuiStyle>): this {
+        this.FontSizeBase = other.FontSizeBase;
+        this.FontScaleMain = other.FontScaleMain;        
+        this.FontScaleDpi = other.FontScaleDpi;
         this.Alpha = other.Alpha;
         this.DisabledAlpha = other.DisabledAlpha;
         this.WindowPadding.Copy(other.WindowPadding);
@@ -4569,4 +4579,9 @@ export function DatePicker(label: string, ymd: Bind.ImTuple3<number>, table_size
 export function Spinner(label: string, radius:number, thickness:number, color:number): boolean {
     const ret = bind.Spinner(label, radius, thickness, color);
     return ret;
+}
+
+export function OpenGL3_Init(version: string): boolean {
+    const rv = bind.OpenGL3_Init(version);
+    return rv;
 }

@@ -69,9 +69,10 @@ function canvas_on_blur(event: FocusEvent): void {
     io.KeyShift = false;
     io.KeyAlt = false;
     io.KeySuper = false;
+    /* #4921 
     for (let i = 0; i < io.KeysDown.length; ++i) {
         io.KeysDown[i] = false;
-    }
+    } */
     for (let i = 0; i < io.MouseDown.length; ++i) {
         io.MouseDown[i] = false;
     }
@@ -90,7 +91,10 @@ function canvas_on_keydown(event: KeyboardEvent): void {
     io.KeySuper = event.metaKey;
     const key_index: number = key_code_to_index[event.code] || event.keyCode;
     ImGui.ASSERT(key_index >= 0 && key_index < ImGui.ARRAYSIZE(io.KeysDown));
-    io.KeysDown[key_index] = true;
+    // old 1.87 code...
+    // io.KeysDown[key_index] = true;
+    // https://github.com/ocornut/imgui/issues/4921
+    io.AddKeyEvent(key_index, true);
     // forward to the keypress event
     if (/*io.WantCaptureKeyboard ||*/ event.key === "Tab") {
         event.preventDefault();
@@ -106,7 +110,8 @@ function canvas_on_keyup(event: KeyboardEvent): void  {
     io.KeySuper = event.metaKey;
     const key_index: number = key_code_to_index[event.code] || event.keyCode;
     ImGui.ASSERT(key_index >= 0 && key_index < ImGui.ARRAYSIZE(io.KeysDown));
-    io.KeysDown[key_index] = false;
+    // io.KeysDown[key_index] = false;
+    io.AddKeyEvent(key_index, false);
     if (io.WantCaptureKeyboard) {
         event.preventDefault();
     }
@@ -266,7 +271,7 @@ export function Init(value: HTMLCanvasElement | WebGL2RenderingContext | WebGLRe
 
     // Setup back-end capabilities flags
     io.BackendFlags |= ImGui.BackendFlags.HasMouseCursors;   // We can honor GetMouseCursor() values (optional)
-
+ 
     // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
     /**
     io.AddKeyEvent(ImGui.Key.Tab, true);

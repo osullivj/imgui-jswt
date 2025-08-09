@@ -244,6 +244,12 @@ export interface reference_ImGuiTableSortSpecs extends Emscripten.EmscriptenClas
 // You may modify the ImGui::GetStyle() main instance during initialization and before NewFrame().
 // During the frame, prefer using ImGui::PushStyleVar(ImGuiStyleVar_XXXX)/PopStyleVar() to alter the main style values, and ImGui::PushStyleColor(ImGuiCol_XXX)/PopStyleColor() for colors.
 export interface interface_ImGuiStyle {
+    // Font scaling
+    // - recap: ImGui::GetFontSize() == FontSizeBase * (FontScaleMain * FontScaleDpi * other_scaling_factors)
+    // float       FontSizeBase;               // Current base font size before external global factors are applied. Use PushFont(NULL, size) to modify. Use ImGui::GetFontSize() to obtain scaled value.
+    // float       FontScaleMain;              // Main global scale factor. May be set by application once, or exposed to end-user.
+    // float       FontScaleDpi;               // Additional global scale factor from viewport/monitor contents scale. When io.ConfigDpiScaleFonts is enabled, this is automatically overwritten when changing monitor DPI.
+
     // float       Alpha;                      // Global alpha applies to everything in Dear ImGui.
     // float       DisabledAlpha;              //
     // ImVec2      WindowPadding;              // Padding within a window.
@@ -286,6 +292,9 @@ export interface interface_ImGuiStyle {
     // float       CircleTessellationMaxError;      // Maximum error (in pixels) allowed when using AddCircle()/AddCircleFilled() or drawing rounded corner rectangles with no explicit segment count specified. Decrease for higher quality but more geometry.
     // ImVec4      Colors[ImGuiCol_COUNT];
 
+    FontSizeBase: number;
+    FontScaleMain: number;
+    FontScaleDpi: number;
     Alpha: number;
     DisabledAlpha: number;
     readonly WindowPadding: interface_ImVec2;
@@ -335,6 +344,9 @@ export interface interface_ImGuiStyle {
 }
 
 export class ImGuiStyle extends Emscripten.EmscriptenClass implements interface_ImGuiStyle {
+    FontSizeBase: number;
+    FontScaleMain: number;
+    FontScaleDpi: number;
     Alpha: number;
     DisabledAlpha: number;
     readonly WindowPadding: reference_ImVec2;
@@ -2068,4 +2080,5 @@ export interface Module extends Emscripten.EmscriptenModule {
     
     DatePicker(label: string, v: ImTuple3<number>, tsz: ImTuple2<number>, clamp:boolean, flags: ImGuiTableFlags): boolean;
     Spinner(label: string, radius:number, thickness:number, color:number): boolean;
+    OpenGL3_Init(version: string): boolean;
 }
